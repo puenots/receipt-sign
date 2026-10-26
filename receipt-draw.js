@@ -15,6 +15,20 @@ window.drawReceipt = function (r, sig) {
     do { g.font = `${s}px ${font}`; s -= 1; } while (g.measureText(text).width > maxW && s > 12);
     g.textAlign = align; g.fillText(text, x, y); g.textAlign = "left";
   };
+  // 長い住所は小さくしすぎず 2 行に折り返す(y は下の行の位置)
+  const fit2 = (text, x, y, maxW, size, font) => {
+    g.font = `${size}px ${font}`;
+    if (g.measureText(text).width <= maxW) return g.fillText(text, x, y);
+    let s = 26, cut;
+    for (; s >= 16; s -= 1) {
+      g.font = `${s}px ${font}`;
+      cut = 1;
+      while (cut < text.length && g.measureText(text.slice(0, cut + 1)).width <= maxW) cut++;
+      if (g.measureText(text.slice(cut)).width <= maxW) break;
+    }
+    g.fillText(text.slice(0, cut), x, y - s - 4);
+    fit(text.slice(cut), x, y, maxW, s, font);
+  };
   const line = (x1, y, x2, w = 2) => { g.lineWidth = w; g.beginPath(); g.moveTo(x1, y); g.lineTo(x2, y); g.stroke(); };
 
   g.font = `bold 64px ${serif}`; g.textAlign = "center"; g.fillText("領　収　書", W / 2, 110); g.textAlign = "left";
@@ -32,7 +46,7 @@ window.drawReceipt = function (r, sig) {
   const rows = [["ご住所", r.address, 670], ["お名前", r.name, 750], ["お電話番号", r.phone, 830]];
   for (const [label, val, y] of rows) {
     g.font = `28px ${sans}`; g.fillText(label, 80, y);
-    fit(val || "", 260, y, 560, 34, sans);
+    if (label === "ご住所") fit2(val || "", 260, y, 560, 34, sans); else fit(val || "", 260, y, 560, 34, sans);
     line(250, y + 14, 840, 1.5);
   }
   // サイン欄(右下)

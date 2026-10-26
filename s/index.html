@@ -19,7 +19,7 @@ h1{text-align:center;font-family:"Hiragino Mincho ProN",serif;letter-spacing:.5e
 .amount span{font-size:13px}
 .amount b{font-family:"Hiragino Mincho ProN",serif;font-size:28px}
 .prov{font-size:14px;margin:0}
-.lbl{font-size:12px;color:var(--sub);margin:16px 0 2px}
+.lbl{display:block;font-size:12px;color:var(--sub);margin:16px 0 2px}
 input{width:100%;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-family:inherit}
 #sigbox{width:100%;height:130px;margin-top:4px;border:2px dashed #888;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;color:#777;font-size:16px;font-weight:700;padding:6px}
 #sigbox img{max-width:100%;max-height:100%}
@@ -53,17 +53,18 @@ a.btn{display:block;text-align:center;text-decoration:none;font-weight:700;borde
   <div id="fail" class="paper hide"><p class="err" id="failmsg"></p></div>
 
   <form id="form" class="paper hide" autocomplete="on">
+    <p class="note" style="margin:0 0 12px;font-size:13px">内容を確かめて、住所とお名前を書き、サインして送信してください。</p>
     <h1>領収書</h1>
     <div class="payee"><span id="payee"></span><small id="date"></small></div>
     <div class="amount"><span>金額</span><b id="amount"></b></div>
     <p class="prov">但し、<span id="prov"></span><br>上記、正に領収いたしました。</p>
 
-    <div class="lbl">郵便番号(入れると住所が出ます)</div>
+    <label class="lbl" for="zip">郵便番号(入れると住所が出ます)</label>
     <input id="zip" name="zip" inputmode="numeric" autocomplete="postal-code" placeholder="例: 2310801" style="max-width:200px">
     <div id="zipPick"></div>
-    <div class="lbl">ご住所(必須)</div><input id="address" name="address" autocomplete="street-address" required>
-    <div class="lbl">お名前(必須)</div><input id="name" name="name" autocomplete="name" required>
-    <div class="lbl">お電話番号</div><input id="phone" name="phone" type="tel" autocomplete="tel">
+    <label class="lbl" for="address">ご住所(必須)</label><input id="address" name="address" autocomplete="street-address" required>
+    <label class="lbl" for="name">お名前(必須)</label><input id="name" name="name" autocomplete="name" required>
+    <label class="lbl" for="phone">お電話番号</label><input id="phone" name="phone" type="tel" autocomplete="tel">
 
     <div class="lbl">サイン</div>
     <button type="button" id="sigbox">タップしてサインを書く ✍︎</button>
@@ -78,7 +79,7 @@ a.btn{display:block;text-align:center;text-decoration:none;font-weight:700;borde
     <h2>送信しました</h2>
     <p>ありがとうございました。</p>
     <a class="btn" id="copy" target="_blank" rel="noopener">控えの PDF を保存</a>
-    <p class="note">控えのリンクは 1 時間で切れます。</p>
+    <p class="note">控えのリンクは 1 時間で切れます。このページは閉じてかまいません。</p>
   </div>
 </main>
 <div id="pad" class="hide">
@@ -97,7 +98,12 @@ function show(id) { for (const k of ["loading", "fail", "form", "done"]) $(k).cl
 function fail(msg) { $("failmsg").textContent = msg; show("fail"); }
 
 async function api(method, path, body) {
-  const res = await fetch(window.RECEIPT_API + path, { method, headers: body ? { "content-type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+  let res;
+  try {
+    res = await fetch(window.RECEIPT_API + path, { method, headers: body ? { "content-type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+  } catch {
+    throw new Error("通信できませんでした。電波のよいところで、もう一度お試しください。");
+  }
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `エラー(${res.status})`);
   return json;
@@ -144,8 +150,18 @@ function pos(e) {
 // iPhone の長押しで文字選択・メニュー・拡大が始まらないようにする
 for (const ev of ["touchstart", "touchmove"]) big.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
 for (const ev of ["selectstart", "contextmenu", "dblclick"]) $("pad").addEventListener(ev, (e) => e.preventDefault());
-big.addEventListener("pointerdown", (e) => { e.preventDefault(); big.setPointerCapture(e.pointerId); cur = { w: padW, h: padH, pts: [pos(e)] }; strokes.push(cur); redraw(); });
-big.addEventListener("pointermove", (e) => { if (!cur) return; e.preventDefault(); cur.pts.push(pos(e)); redraw(); });
+function segment(a, b) { // 書いている最中は新しい 1 区間だけ描く(全体の描き直しは向きが変わったときだけ)
+  bctx.beginPath(); bctx.moveTo(a[0], a[1]); bctx.lineTo(b[0] + 0.01, b[1] + 0.01); bctx.stroke();
+}
+big.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  try { big.setPointerCapture(e.pointerId); } catch {}
+  const p = pos(e); cur = { w: padW, h: padH, pts: [p] }; strokes.push(cur); segment(p, p);
+});
+big.addEventListener("pointermove", (e) => {
+  if (!cur) return; e.preventDefault();
+  const p = pos(e); segment(cur.pts[cur.pts.length - 1], p); cur.pts.push(p);
+});
 for (const ev of ["pointerup", "pointercancel"]) big.addEventListener(ev, () => { cur = null; });
 
 let saved = [];

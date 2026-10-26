@@ -82,7 +82,8 @@ button.sm{padding:6px 10px;font-size:13px}
   </section>
 
   <section id="tList" class="card hide">
-    <h2>一覧</h2>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2 style="margin:0">一覧</h2><button type="button" class="sm" id="reload">最新にする</button></div>
+    <div class="meta" id="loadedAt" style="font-size:12px;color:var(--sub);margin:2px 0 8px"></div>
     <div class="filters">
       <button class="sm on" data-f="all">全部</button><button class="sm" data-f="pending">未サイン</button><button class="sm" data-f="signed">サイン済</button><button class="sm" data-f="void">取消</button>
     </div>
@@ -150,7 +151,10 @@ $("loginForm").onsubmit = async (e) => {
 document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
   document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
   for (const id of ["tNew", "tList", "tPeople", "tKeiri"]) $(id).classList.toggle("hide", id !== b.dataset.tab);
+  if (b.dataset.tab === "tList") loadReceipts().catch(() => {}); // 相手がサインしたかもしれないので開くたびに読み直す
 });
+$("reload").onclick = () => loadReceipts().catch((err) => ($("loadedAt").textContent = err.message));
+document.addEventListener("visibilitychange", () => { if (!document.hidden && session) loadReceipts().catch(() => {}); });
 
 async function copy(text, btn) {
   try { await navigator.clipboard.writeText(text); const t = btn.textContent; btn.textContent = "コピーしました"; setTimeout(() => btn.textContent = t, 1500); }
@@ -201,7 +205,10 @@ function editForm(r, mode) {
       const res = await api("POST", `/api/receipts/${mode}`, { id: r.id, changes });
       await loadReceipts();
       if (mode === "reissue") { const row = document.querySelector(`[data-id="${res.receipt.id}"]`); if (row) { row.append(urlBox(res.url)); row.scrollIntoView({ block: "center" }); } }
-    } catch (err) { d.querySelector(".msg").textContent = err.message; }
+    } catch (err) {
+      d.querySelector(".msg").textContent = err.message;
+      if (/サイン済み|取消済み/.test(err.message)) setTimeout(() => loadReceipts().catch(() => {}), 1500); // 画面が古かったので最新にする
+    }
   };
   return d;
 }
@@ -228,6 +235,7 @@ function renderList() {
 }
 async function loadReceipts() {
   receipts = (await api("GET", "/api/receipts")).receipts;
+  $("loadedAt").textContent = `${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })} 時点`;
   const events = [...new Set(receipts.map((r) => r.event).filter(Boolean))];
   $("kEvent").innerHTML = '<option value="">(イベントで絞らない)</option>' + events.map((e) => `<option>${esc(e)}</option>`).join("");
   renderList();
