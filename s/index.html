@@ -25,6 +25,8 @@ input{width:100%;font-size:16px;padding:10px;border:1px solid var(--line);border
 #sigbox img{max-width:100%;max-height:100%}
 #pad{position:fixed;inset:0;z-index:10;background:#fff;display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 #pad.hide{display:none}
+/* 縦持ちのときは書く画面ごと 90 度回して横向きで出す(iPhone は向きの固定ができないため) */
+#pad.rot{inset:auto;top:0;left:0;transform-origin:top left;padding:env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) env(safe-area-inset-top)}
 #pad .bar{padding:10px 14px;font-size:14px;color:#444;text-align:center}
 #pad .area{flex:1;position:relative;margin:0 10px;border:2px dashed #aaa;border-radius:12px;min-height:0}
 #pad .area::after{content:"";position:absolute;left:8%;right:8%;bottom:28%;border-bottom:1px solid #ccc;pointer-events:none}
@@ -76,7 +78,7 @@ a.btn{display:block;text-align:center;text-decoration:none;font-weight:700;borde
   </div>
 </main>
 <div id="pad" class="hide">
-  <div class="bar">枠いっぱいに大きくサインしてください。<br>スマホを横向きにすると、もっと広く書けます。</div>
+  <div class="bar">スマホを横に持って、枠いっぱいに大きくサインしてください。</div>
   <div class="area"><canvas id="big"></canvas><span>✕</span></div>
   <div class="btns"><button type="button" id="padClear">書き直す</button><button type="button" id="padCancel">やめる</button><button type="button" class="main" id="padOk" style="margin:0">これで決定</button></div>
 </div>
@@ -102,8 +104,16 @@ const big = $("big");
 const bctx = big.getContext("2d");
 let strokes = [], cur = null, sigImage = null; // strokes = [{w, h, pts: [[x, y], ...]}](書いたときの枠の大きさで記録)
 let padW = 0, padH = 0;
+function layoutPad() {
+  const pad = $("pad"), W = window.innerWidth, H = window.innerHeight;
+  const rot = H > W;
+  pad.classList.toggle("rot", rot);
+  pad.style.width = rot ? `${H}px` : ""; pad.style.height = rot ? `${W}px` : "";
+  pad.style.transform = rot ? `translateX(${W}px) rotate(90deg)` : "";
+}
 function sizePad() {
-  const dpr = window.devicePixelRatio || 1, r = big.getBoundingClientRect();
+  layoutPad();
+  const dpr = window.devicePixelRatio || 1, r = { width: big.offsetWidth, height: big.offsetHeight }; // 回転前の大きさ
   if (r.width === padW && r.height === padH) return; // 向きが変わったときだけ描き直す
   padW = r.width; padH = r.height;
   big.width = Math.round(r.width * dpr); big.height = Math.round(r.height * dpr);
@@ -121,7 +131,11 @@ function redraw() {
     bctx.stroke();
   }
 }
-function pos(e) { const r = big.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+function pos(e) {
+  const r = big.getBoundingClientRect();
+  // 90 度回しているときは画面の座標を枠の中の座標に戻す
+  return $("pad").classList.contains("rot") ? [e.clientY - r.top, r.right - e.clientX] : [e.clientX - r.left, e.clientY - r.top];
+}
 big.addEventListener("pointerdown", (e) => { e.preventDefault(); big.setPointerCapture(e.pointerId); cur = { w: padW, h: padH, pts: [pos(e)] }; strokes.push(cur); redraw(); });
 big.addEventListener("pointermove", (e) => { if (!cur) return; e.preventDefault(); cur.pts.push(pos(e)); redraw(); });
 for (const ev of ["pointerup", "pointercancel"]) big.addEventListener(ev, () => { cur = null; });
