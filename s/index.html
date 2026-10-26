@@ -78,8 +78,8 @@ a.btn{display:block;text-align:center;text-decoration:none;font-weight:700;borde
     <div class="mark">✓</div>
     <h2>送信しました</h2>
     <p>ありがとうございました。</p>
-    <a class="btn" id="copy" target="_blank" rel="noopener">控えの PDF を保存</a>
-    <p class="note">控えのリンクは 1 時間で切れます。このページは閉じてかまいません。</p>
+    <a class="btn" id="copy">控えの PDF を開く</a>
+    <p class="note">開いた PDF は共有ボタンから保存できます。リンクは 1 時間で切れます。このページは閉じてかまいません。</p>
   </div>
 </main>
 <div id="pad" class="hide">
@@ -228,6 +228,15 @@ $("zip").addEventListener("input", async () => {
       b.onclick = () => setAddress(h); $("zipPick").append(b);
     }
   } catch { /* 出なくても手で書ける */ }
+});
+
+// 入力欄で「改行」を押しても送信せず次の欄へ(日本語の変換を確定する改行は除く)
+$("form").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" || e.isComposing || e.keyCode === 229 || e.target.tagName !== "INPUT") return;
+  e.preventDefault();
+  const inputs = [...$("form").querySelectorAll("input")];
+  const next = inputs[inputs.indexOf(e.target) + 1];
+  next ? next.focus() : e.target.blur();
 });
 
 // --- 送信 ---

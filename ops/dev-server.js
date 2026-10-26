@@ -11,7 +11,7 @@ import { hashPassword } from "../api/src/core.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const port = Number(process.argv[2] || 8150);
 const store = memoryStore();
-store.evidenceUrl = async (key) => `/mem/evidence/${encodeURIComponent(key)}`;
+store.evidenceUrl = async (key, _name, inline) => `/mem/evidence/${encodeURIComponent(key)}${inline ? "?inline=1" : ""}`;
 store.exportUrl = async (key) => `/mem/export/${encodeURIComponent(key)}`;
 const handler = makeHandler({ store, env: { ADMIN_PASS_HASH: hashPassword("dev"), SESSION_KEY: "dev", SITE_URL: `http://localhost:${port}` } });
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css" };

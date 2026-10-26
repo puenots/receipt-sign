@@ -67,6 +67,7 @@ test("作成→サイン→PDF→再サイン→経理 ZIP まで一周", async 
   assert.equal((await call("POST", "/api/sign", { t: token, name: "山田 太郎", png: "AAAA" })).status, 400);
   const s = await call("POST", "/api/sign", { t: token, name: "山田 太郎", address: "横浜市中区2-2", phone: "090-1111-2222", png: PNG });
   assert.equal(s.status, 200, JSON.stringify(s.json));
+  assert.match(s.json.copyUrl, /inline=1/); // 相手の控えはその場で表示
   const id = c.json.receipt.id;
   assert.ok(store.evidence.get(`${id}.pdf`).subarray(0, 5).toString() === "%PDF-");
   assert.equal((await store.getJSON(`people/${p.id}.json`)).address, "横浜市中区2-2"); // 名簿も直る

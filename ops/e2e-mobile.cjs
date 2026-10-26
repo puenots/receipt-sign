@@ -92,6 +92,8 @@ async function newReceipt(adminPage, opts = {}) {
     await p.fill("#zip", "231-0801"); await p.waitForTimeout(400);
     check((await p.inputValue("#address")) === "神奈川県横浜市中区新山下", `${dev}: 郵便番号で住所が出る`);
     await p.fill("#address", "神奈川県横浜市中区新山下1-2-3");
+    await p.press("#address", "Enter");
+    check((await p.evaluate(() => document.activeElement.id)) === "name" && !(await p.textContent("#err")), `${dev}: 住所で改行すると次の欄へ(送信しない)`);
     await p.fill("#name", "テスト 花子");
     // サインなしで送ると止まる
     await p.click("#send");

@@ -106,7 +106,7 @@ export function makeHandler({ store, env, now = () => new Date(), sleep = (ms) =
       signed.personId = p.id;
       await saveReceipt(signed);
       await store.putJSON(`log/${r.id}/${signed.signedAt}.json`, { action: "sign", at: signed.signedAt, ip, ua, sha256: hash, pdfSha256: sha256(pdf) });
-      return { ok: true, copyUrl: await store.evidenceUrl(`${r.id}.pdf`, core.pdfFileName(signed)) };
+      return { ok: true, copyUrl: await store.evidenceUrl(`${r.id}.pdf`, core.pdfFileName(signed), true) };
     },
   };
   const PUBLIC = new Set(["POST /api/login", "GET /api/sign", "POST /api/sign"]);

@@ -2,8 +2,8 @@
 import { S3Client, GetObjectCommand, PutObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-function disposition(filename) {
-  return `attachment; filename="receipt.${filename.split(".").pop()}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+function disposition(filename, inline = false) {
+  return `${inline ? "inline" : "attachment"}; filename="receipt.${filename.split(".").pop()}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
 export function s3Store({ dataBucket, pdfBucket, region = "ap-northeast-1" }) {
@@ -36,7 +36,8 @@ export function s3Store({ dataBucket, pdfBucket, region = "ap-northeast-1" }) {
       const o = await s3.send(new GetObjectCommand({ Bucket: pdfBucket, Key: key }));
       return Buffer.from(await o.Body.transformToByteArray());
     },
-    evidenceUrl: (key, filename) => getSignedUrl(s3, new GetObjectCommand({ Bucket: pdfBucket, Key: key, ResponseContentDisposition: disposition(filename) }), { expiresIn: 3600 }),
+    // inline=true はその場で表示(iPhone は「ダウンロード」扱いだと白いタブになるため、相手の控えは表示にする)
+    evidenceUrl: (key, filename, inline = false) => getSignedUrl(s3, new GetObjectCommand({ Bucket: pdfBucket, Key: key, ResponseContentDisposition: disposition(filename, inline), ResponseContentType: "application/pdf" }), { expiresIn: 3600 }),
     putExport: (key, bytes) => s3.send(new PutObjectCommand({ Bucket: dataBucket, Key: key, Body: bytes, ContentType: "application/zip" })),
     exportUrl: (key, filename) => getSignedUrl(s3, new GetObjectCommand({ Bucket: dataBucket, Key: key, ResponseContentDisposition: disposition(filename) }), { expiresIn: 3600 }),
   };
@@ -56,7 +57,7 @@ export function memoryStore() {
       evidence.set(key, Buffer.from(bytes));
     },
     getEvidence: async (key) => evidence.get(key),
-    evidenceUrl: async (key, filename) => `mem://evidence/${key}?name=${encodeURIComponent(filename)}`,
+    evidenceUrl: async (key, filename, inline = false) => `mem://evidence/${key}?name=${encodeURIComponent(filename)}${inline ? "&inline=1" : ""}`,
     putExport: async (key, bytes) => { data.set(key, Buffer.from(bytes)); },
     exportUrl: async (key, filename) => `mem://export/${key}?name=${encodeURIComponent(filename)}`,
   };
