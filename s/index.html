@@ -105,7 +105,8 @@ const bctx = big.getContext("2d");
 let strokes = [], cur = null, sigImage = null; // strokes = [{w, h, pts: [[x, y], ...]}](書いたときの枠の大きさで記録)
 let padW = 0, padH = 0;
 function layoutPad() {
-  const pad = $("pad"), W = window.innerWidth, H = window.innerHeight;
+  // innerWidth/innerHeight はキーボードが出ていると縮むので、キーボードで変わらない画面の大きさを使う
+  const pad = $("pad"), W = document.documentElement.clientWidth, H = document.documentElement.clientHeight;
   const rot = H > W;
   pad.classList.toggle("rot", rot);
   pad.style.width = rot ? `${H}px` : ""; pad.style.height = rot ? `${W}px` : "";
@@ -143,8 +144,10 @@ for (const ev of ["pointerup", "pointercancel"]) big.addEventListener(ev, () => 
 let saved = [];
 function openPad() {
   saved = strokes.slice();
+  if (document.activeElement) document.activeElement.blur(); // キーボードを閉じる
   $("pad").classList.remove("hide"); document.body.style.overflow = "hidden";
   padW = padH = 0; sizePad();
+  setTimeout(sizePad, 400); // キーボードが閉じきってから測り直す
 }
 function closePad() { $("pad").classList.add("hide"); document.body.style.overflow = ""; }
 // 書いた部分だけを切り出す(領収書に大きく載せるため)
@@ -172,7 +175,10 @@ $("padOk").onclick = () => {
   $("sigbox").append(im);
   closePad();
 };
-window.addEventListener("resize", () => { if (!$("pad").classList.contains("hide")) sizePad(); });
+const relayout = () => { if (!$("pad").classList.contains("hide")) sizePad(); };
+window.addEventListener("resize", relayout);
+window.addEventListener("orientationchange", () => setTimeout(relayout, 300));
+if (window.visualViewport) window.visualViewport.addEventListener("resize", relayout);
 
 // --- 送信 ---
 $("form").addEventListener("submit", async (e) => {
