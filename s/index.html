@@ -21,9 +21,17 @@ h1{text-align:center;font-family:"Hiragino Mincho ProN",serif;letter-spacing:.5e
 .prov{font-size:14px;margin:0}
 .lbl{font-size:12px;color:var(--sub);margin:16px 0 2px}
 input{width:100%;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-family:inherit}
-.sigwrap{position:relative;margin-top:4px}
-canvas#sig{width:100%;height:180px;border:2px dashed #888;border-radius:10px;background:#fff;touch-action:none;display:block}
-.sighint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#aaa;pointer-events:none;font-size:15px}
+#sigbox{width:100%;height:130px;margin-top:4px;border:2px dashed #888;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;color:#777;font-size:16px;font-weight:700;padding:6px}
+#sigbox img{max-width:100%;max-height:100%}
+#pad{position:fixed;inset:0;z-index:10;background:#fff;display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+#pad.hide{display:none}
+#pad .bar{padding:10px 14px;font-size:14px;color:#444;text-align:center}
+#pad .area{flex:1;position:relative;margin:0 10px;border:2px dashed #aaa;border-radius:12px;min-height:0}
+#pad .area::after{content:"";position:absolute;left:8%;right:8%;bottom:28%;border-bottom:1px solid #ccc;pointer-events:none}
+#pad .area span{position:absolute;left:8%;bottom:calc(28% + 4px);color:#bbb;font-size:22px;pointer-events:none}
+#big{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#pad .btns{display:flex;gap:8px;padding:10px}
+#pad .btns button{flex:1;padding:12px 4px;font-size:15px;white-space:nowrap}
 .row{display:flex;gap:10px;margin-top:8px}
 button{font:inherit;font-weight:700;border-radius:10px;padding:14px;border:2px solid var(--accent);background:#fff;color:var(--accent);cursor:pointer}
 button.main{background:var(--accent);color:#fff;width:100%;font-size:18px;margin-top:20px}
@@ -51,9 +59,8 @@ a.btn{display:block;text-align:center;text-decoration:none;font-weight:700;borde
     <div class="lbl">お名前(必須)</div><input id="name" name="name" autocomplete="name" required>
     <div class="lbl">お電話番号</div><input id="phone" name="phone" type="tel" autocomplete="tel">
 
-    <div class="lbl">サイン(指で書いてください)</div>
-    <div class="sigwrap"><canvas id="sig"></canvas><div class="sighint" id="hint">ここにサイン</div></div>
-    <div class="row"><button type="button" id="clear">書き直す</button></div>
+    <div class="lbl">サイン</div>
+    <button type="button" id="sigbox">タップしてサインを書く ✍︎</button>
 
     <button class="main" id="send" type="submit">この内容で送信する</button>
     <div class="err" id="err"></div>
@@ -68,6 +75,11 @@ a.btn{display:block;text-align:center;text-decoration:none;font-weight:700;borde
     <p class="note">控えのリンクは 1 時間で切れます。</p>
   </div>
 </main>
+<div id="pad" class="hide">
+  <div class="bar">枠いっぱいに大きくサインしてください。<br>スマホを横向きにすると、もっと広く書けます。</div>
+  <div class="area"><canvas id="big"></canvas><span>✕</span></div>
+  <div class="btns"><button type="button" id="padClear">書き直す</button><button type="button" id="padCancel">やめる</button><button type="button" class="main" id="padOk" style="margin:0">これで決定</button></div>
+</div>
 <script src="../config.js"></script>
 <script src="../receipt-draw.js"></script>
 <script>
@@ -85,25 +97,68 @@ async function api(method, path, body) {
   return json;
 }
 
-// --- サイン欄 ---
-const sig = $("sig");
-const ctx = sig.getContext("2d");
-let strokes = 0, drawing = false;
-let lastW = 0;
-function sizeCanvas() {
-  const dpr = window.devicePixelRatio || 1, rect = sig.getBoundingClientRect();
-  if (rect.width === lastW) return; // iPhone はスクロールでも resize が来る。幅が変わったときだけ描き直す
-  lastW = rect.width;
-  const keep = strokes ? sig.toDataURL() : null;
-  sig.width = Math.round(rect.width * dpr); sig.height = Math.round(rect.height * dpr);
-  ctx.scale(dpr, dpr); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 2.6; ctx.strokeStyle = "#111";
-  if (keep) { const im = new Image(); im.onload = () => ctx.drawImage(im, 0, 0, rect.width, rect.height); im.src = keep; }
+// --- サイン欄: 枠をタップすると画面いっぱいの書く画面を開く ---
+const big = $("big");
+const bctx = big.getContext("2d");
+let strokes = [], cur = null, sigImage = null; // strokes = [{w, h, pts: [[x, y], ...]}](書いたときの枠の大きさで記録)
+let padW = 0, padH = 0;
+function sizePad() {
+  const dpr = window.devicePixelRatio || 1, r = big.getBoundingClientRect();
+  if (r.width === padW && r.height === padH) return; // 向きが変わったときだけ描き直す
+  padW = r.width; padH = r.height;
+  big.width = Math.round(r.width * dpr); big.height = Math.round(r.height * dpr);
+  bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  redraw();
 }
-function pos(e) { const r = sig.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
-sig.addEventListener("pointerdown", (e) => { e.preventDefault(); sig.setPointerCapture(e.pointerId); drawing = true; const [x, y] = pos(e); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 0.1, y + 0.1); ctx.stroke(); strokes++; $("hint").classList.add("hide"); });
-sig.addEventListener("pointermove", (e) => { if (!drawing) return; e.preventDefault(); const [x, y] = pos(e); ctx.lineTo(x, y); ctx.stroke(); });
-for (const ev of ["pointerup", "pointercancel"]) sig.addEventListener(ev, () => { drawing = false; });
-$("clear").onclick = () => { ctx.clearRect(0, 0, sig.width, sig.height); strokes = 0; $("hint").classList.remove("hide"); };
+function redraw() {
+  bctx.clearRect(0, 0, padW, padH);
+  bctx.lineCap = "round"; bctx.lineJoin = "round"; bctx.strokeStyle = "#111"; bctx.lineWidth = 3.2;
+  for (const st of strokes) {
+    const k = Math.min(padW / st.w, padH / st.h);
+    bctx.beginPath();
+    st.pts.forEach(([x, y], i) => (i ? bctx.lineTo(x * k, y * k) : bctx.moveTo(x * k, y * k)));
+    if (st.pts.length === 1) bctx.lineTo(st.pts[0][0] * k + 0.1, st.pts[0][1] * k + 0.1);
+    bctx.stroke();
+  }
+}
+function pos(e) { const r = big.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+big.addEventListener("pointerdown", (e) => { e.preventDefault(); big.setPointerCapture(e.pointerId); cur = { w: padW, h: padH, pts: [pos(e)] }; strokes.push(cur); redraw(); });
+big.addEventListener("pointermove", (e) => { if (!cur) return; e.preventDefault(); cur.pts.push(pos(e)); redraw(); });
+for (const ev of ["pointerup", "pointercancel"]) big.addEventListener(ev, () => { cur = null; });
+
+let saved = [];
+function openPad() {
+  saved = strokes.slice();
+  $("pad").classList.remove("hide"); document.body.style.overflow = "hidden";
+  padW = padH = 0; sizePad();
+}
+function closePad() { $("pad").classList.add("hide"); document.body.style.overflow = ""; }
+// 書いた部分だけを切り出す(領収書に大きく載せるため)
+function trimmed() {
+  const dpr = window.devicePixelRatio || 1, pad = 12;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const st of strokes) {
+    const k = Math.min(padW / st.w, padH / st.h);
+    for (const [x, y] of st.pts) { x0 = Math.min(x0, x * k); y0 = Math.min(y0, y * k); x1 = Math.max(x1, x * k); y1 = Math.max(y1, y * k); }
+  }
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(padW, x1 + pad); y1 = Math.min(padH, y1 + pad);
+  const c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round((x1 - x0) * dpr)); c.height = Math.max(1, Math.round((y1 - y0) * dpr));
+  c.getContext("2d").drawImage(big, x0 * dpr, y0 * dpr, c.width, c.height, 0, 0, c.width, c.height);
+  return c;
+}
+$("sigbox").onclick = openPad;
+$("padClear").onclick = () => { strokes = []; redraw(); };
+$("padCancel").onclick = () => { strokes = saved; closePad(); };
+$("padOk").onclick = () => {
+  if (!strokes.length) { strokes = []; sigImage = null; $("sigbox").textContent = "タップしてサインを書く ✍︎"; return closePad(); }
+  sigImage = trimmed();
+  $("sigbox").innerHTML = "";
+  const im = new Image(); im.src = sigImage.toDataURL(); im.alt = "サイン";
+  $("sigbox").append(im);
+  closePad();
+};
+window.addEventListener("resize", () => { if (!$("pad").classList.contains("hide")) sizePad(); });
 
 // --- 送信 ---
 $("form").addEventListener("submit", async (e) => {
@@ -112,10 +167,10 @@ $("form").addEventListener("submit", async (e) => {
   const name = $("name").value.trim();
   if (!name) return ($("err").textContent = "お名前を入れてください");
   if (!$("address").value.trim()) return ($("err").textContent = "ご住所を入れてください");
-  if (!strokes) return ($("err").textContent = "サインを書いてください");
+  if (!sigImage) return ($("err").textContent = "サインを書いてください(「タップしてサインを書く」を押します)");
   $("send").disabled = true; $("send").textContent = "送信中…";
   try {
-    const img = window.drawReceipt({ ...receipt, name, address: $("address").value.trim(), phone: $("phone").value.trim() }, sig);
+    const img = window.drawReceipt({ ...receipt, name, address: $("address").value.trim(), phone: $("phone").value.trim() }, sigImage);
     const png = img.toDataURL("image/png").split(",")[1];
     const res = await api("POST", "/api/sign", { t: token, name, address: $("address").value.trim(), phone: $("phone").value.trim(), png });
     $("copy").href = res.copyUrl;
@@ -137,8 +192,6 @@ $("form").addEventListener("submit", async (e) => {
   $("prov").textContent = receipt.proviso;
   $("address").value = receipt.address; $("name").value = receipt.name; $("phone").value = receipt.phone;
   show("form");
-  sizeCanvas();
-  window.addEventListener("resize", sizeCanvas);
 })();
 </script>
 </body>
