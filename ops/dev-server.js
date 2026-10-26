@@ -36,6 +36,9 @@ http.createServer(async (req, res) => {
     if (!buf) { res.writeHead(404); return res.end(); }
     res.writeHead(200, { "content-type": kind === "evidence" ? "application/pdf" : "application/zip" }); return res.end(buf);
   }
+  if (url.pathname === "/config.js") { // 手元では本番 API ではなくこのサーバーの API を使う
+    res.writeHead(200, { "content-type": TYPES[".js"] }); return res.end('window.RECEIPT_API = "";');
+  }
   let file = path.join(root, url.pathname);
   if (!file.startsWith(root)) { res.writeHead(403); return res.end(); }
   if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html");

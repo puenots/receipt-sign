@@ -70,7 +70,7 @@ button.sm{padding:6px 10px;font-size:13px}
       <div class="grid">
         <div><label>金額(円)</label><input id="nAmount" type="number" inputmode="numeric" min="1" step="1" required></div>
         <div><label>日付(イベントの日)</label><input id="nDate" type="date" required></div>
-        <div><label>イベント名</label><input id="nEvent" list="events" placeholder="例: STILL045"></div>
+        <div><label>イベント名</label><select id="nEvent"></select></div>
         <div><label>但し書き</label><select id="nKind"></select></div>
       </div>
       <div class="prev" id="nPrev"></div>
@@ -114,12 +114,12 @@ button.sm{padding:6px 10px;font-size:13px}
     <div class="msg" id="kMsg"></div>
   </section>
 </div>
-<datalist id="events"></datalist>
 </main>
 <script src="../config.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const KINDS = { shukyaku: "イベント協力費（集客）", setsuei: "会場設営・撤収作業代", dj: "DJ出演料", kyoryoku: "イベント協力費" };
+const EVENTS = ["STILL045", "BLOCK6"];
 const STATUS = { pending: "未サイン", signed: "サイン済", void: "取消" };
 let people = [], receipts = [], filter = "all";
 const store = { get(k) { try { return sessionStorage.getItem(k); } catch { return null; } }, set(k, v) { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch {} } };
@@ -162,11 +162,12 @@ function urlBox(url) {
   b1.onclick = () => copy(url, b1); b2.onclick = () => copy(lineText(url), b2);
   return d;
 }
+function eventOptions(sel) { return [...new Set([...EVENTS, sel].filter(Boolean))].map((e) => `<option ${e === sel ? "selected" : ""}>${esc(e)}</option>`).join(""); }
 function kindOptions(sel) { return Object.entries(KINDS).map(([k, v]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${v}</option>`).join(""); }
 
 // --- 新しく作る ---
 function updPrev() { $("nPrev").textContent = "但し、" + proviso($("nKind").value, $("nDate").value, $("nEvent").value); }
-["nKind", "nDate", "nEvent"].forEach((id) => $(id).addEventListener("input", updPrev));
+["nKind", "nDate", "nEvent"].forEach((id) => { $(id).addEventListener("input", updPrev); $(id).addEventListener("change", updPrev); });
 $("newForm").onsubmit = async (e) => {
   e.preventDefault(); $("nMsg").textContent = ""; $("nOut").innerHTML = "";
   try {
@@ -187,7 +188,7 @@ function editForm(r, mode) {
   d.innerHTML = `<div style="font-weight:700;font-size:14px">${mode === "update" ? "内容を直す(URL はそのまま)" : "金額などを直して再サイン(この領収書は「取消」で残り、新しい URL ができます)"}</div>
   <div class="grid"><div><label>金額(円)</label><input name="amount" type="number" inputmode="numeric" min="1" value="${r.amount}"></div>
   <div><label>日付</label><input name="date" type="date" value="${r.date}"></div>
-  <div><label>イベント名</label><input name="event" list="events" value="${esc(r.event)}"></div>
+  <div><label>イベント名</label><select name="event">${eventOptions(r.event)}</select></div>
   <div><label>但し書き</label><select name="kind">${kindOptions(r.kind)}</select></div></div>
   <div style="display:flex;gap:8px;margin-top:10px"><button class="main sm">${mode === "update" ? "保存" : "取消して新しい URL を作る"}</button><button type="button" class="sm" data-x>やめる</button></div><div class="msg e"></div>`;
   d.querySelector("[data-x]").onclick = () => d.remove();
@@ -226,7 +227,6 @@ function renderList() {
 async function loadReceipts() {
   receipts = (await api("GET", "/api/receipts")).receipts;
   const events = [...new Set(receipts.map((r) => r.event).filter(Boolean))];
-  $("events").innerHTML = events.map((e) => `<option value="${esc(e)}">`).join("");
   $("kEvent").innerHTML = '<option value="">(イベントで絞らない)</option>' + events.map((e) => `<option>${esc(e)}</option>`).join("");
   renderList();
 }
@@ -265,6 +265,7 @@ $("kGo").onclick = async () => {
 async function start() {
   $("login").classList.add("hide"); $("app").classList.remove("hide");
   $("nKind").innerHTML = kindOptions("shukyaku");
+  $("nEvent").innerHTML = eventOptions("STILL045");
   $("nDate").value = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
   $("kMonth").value = $("nDate").value.slice(0, 7);
   updPrev();
