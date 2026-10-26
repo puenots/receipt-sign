@@ -49,7 +49,7 @@ test("作成→サイン→PDF→再サイン→経理 ZIP まで一周", async 
   const c = await call("POST", "/api/receipts", { personId: p.id, amount: "15000", date: "2026-10-24", event: "STILL045", kind: "shukyaku" });
   assert.equal(c.status, 200);
   const token = c.json.url.split("#")[1];
-  assert.match(c.json.url, /^https:\/\/receipt\.djue\.me\/s\/#/);
+  assert.match(c.json.url, /^https:\/\/receipt\.djue\.me\/s\/\?r=R-\d{8}-[0-9A-F]{6}#/);
 
   // サイン前は金額変更できる(URL 同じ)
   const u = await call("POST", "/api/receipts/update", { id: c.json.receipt.id, changes: { amount: "12000" } });

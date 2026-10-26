@@ -13,7 +13,8 @@ class HttpError extends Error {
 
 export function makeHandler({ store, env, now = () => new Date(), sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
   const siteUrl = env.SITE_URL || "https://receipt.djue.me";
-  const signUrl = (r) => `${siteUrl}/s/#${r.token}`;
+  // ?r= は領収書ごとに違うので、スマホに古いページが残っていても必ず最新を読む(トークンはサーバーに残らない # の後ろ)
+  const signUrl = (r) => `${siteUrl}/s/?r=${r.id}#${r.token}`;
   const allowed = (origin) => origin === siteUrl || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin || "");
 
   const getReceipt = async (id) => {
