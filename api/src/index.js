@@ -57,7 +57,8 @@ export function makeHandler({ store, env, now = () => new Date(), sleep = (ms) =
 
     "GET /api/receipts": async () => ({ receipts: (await store.listJSON("receipts/")).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((r) => ({ ...r, url: r.status === "pending" ? signUrl(r) : null })) }),
     "POST /api/receipts": async ({ body }) => {
-      const r = core.createReceipt({ person: await getPerson(body.personId), amount: Number(body.amount), date: body.date, event: body.event, kind: body.kind }, now());
+      const person = body.personId ? await getPerson(body.personId) : null;
+      const r = core.createReceipt({ person, nameHint: body.nameHint, amount: Number(body.amount), date: body.date, event: body.event, kind: body.kind }, now());
       await saveReceipt(r);
       return { receipt: r, url: signUrl(r) };
     },
@@ -99,10 +100,12 @@ export function makeHandler({ store, env, now = () => new Date(), sleep = (ms) =
       const pdf = await buildPdf({ png, receiptId: r.id, signedAt: signed.signedAt, hash });
       await store.putEvidence(`${r.id}.png`, png, "image/png");
       await store.putEvidence(`${r.id}.pdf`, pdf, "application/pdf");
+      // 名簿の人は書き直した内容で更新、名簿にない人は名簿に追加(次回から選べる)
+      const p = (r.personId && (await store.getJSON(`people/${r.personId}.json`))) || { id: core.newId("P", now()) };
+      await store.putJSON(`people/${p.id}.json`, { ...p, name: signed.name, address: signed.address, phone: signed.phone, updatedAt: signed.signedAt });
+      signed.personId = p.id;
       await saveReceipt(signed);
       await store.putJSON(`log/${r.id}/${signed.signedAt}.json`, { action: "sign", at: signed.signedAt, ip, ua, sha256: hash, pdfSha256: sha256(pdf) });
-      const p = await store.getJSON(`people/${r.personId}.json`);
-      if (p) await store.putJSON(`people/${p.id}.json`, { ...p, name: signed.name, address: signed.address, phone: signed.phone, updatedAt: signed.signedAt });
       return { ok: true, copyUrl: await store.evidenceUrl(`${r.id}.pdf`, core.pdfFileName(signed)) };
     },
   };
@@ -131,7 +134,7 @@ export function makeHandler({ store, env, now = () => new Date(), sleep = (ms) =
     } catch (e) {
       if (e instanceof HttpError) return reply(e.status, { error: e.message });
       if (e instanceof SyntaxError) return reply(400, { error: "送信内容が読めません" });
-      if (/が正しくありません|直せません|再サイン|使えません|お名前/.test(e.message)) return reply(400, { error: e.message });
+      if (/が正しくありません|直せません|再サイン|使えません|お名前|ご住所/.test(e.message)) return reply(400, { error: e.message });
       console.error(e);
       return reply(500, { error: "サーバーでエラーが起きました" });
     }

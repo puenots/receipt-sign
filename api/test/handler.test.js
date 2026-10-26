@@ -107,7 +107,7 @@ test("作成→サイン→PDF→再サイン→経理 ZIP まで一周", async 
 
   // 同じ人・日・金額が 2 枚でも ZIP の中で名前がぶつからない
   const c3 = await call("POST", "/api/receipts", { personId: p.id, amount: 20000, date: "2026-10-24", event: "STILL045", kind: "shukyaku" });
-  await call("POST", "/api/sign", { t: c3.json.url.split("#")[1], name: "山田 太郎", png: PNG });
+  await call("POST", "/api/sign", { t: c3.json.url.split("#")[1], name: "山田 太郎", address: "横浜", png: PNG });
   const ex2 = await call("POST", "/api/export", { month: "2026-10" });
   const key2 = ex2.json.url.replace("mem://export/", "").split("?")[0];
   fs.writeFileSync(path.join(dir, "b.zip"), store.data.get(key2));
@@ -122,4 +122,29 @@ test("期限切れの URL は 410", async () => {
   const c = await call("POST", "/api/receipts", { personId: p.id, amount: 100, date: "2026-10-24", kind: "dj" });
   setTime(new Date("2026-12-01T00:00:00Z"));
   assert.equal((await call("GET", `/api/sign?t=${c.json.url.split("#")[1]}`)).status, 410);
+});
+
+test("名簿にない人: 相手が名前・住所を書き、名簿に追加される", async () => {
+  const { store, call, login } = setup();
+  await login();
+  const c = await call("POST", "/api/receipts", { amount: 8000, date: "2026-10-24", event: "BLOCK6", kind: "setsuei", nameHint: "佐藤さん" });
+  assert.equal(c.status, 200, JSON.stringify(c.json));
+  assert.equal(c.json.receipt.personId, null);
+  const t = c.json.url.split("#")[1];
+  const v = (await call("GET", `/api/sign?t=${t}`)).json.receipt;
+  assert.equal(v.name, ""); // 目印は相手に出さない
+  assert.equal(v.label, undefined);
+  assert.equal(c.json.receipt.label, "佐藤さん");
+  assert.equal(v.address, "");
+  // 住所なしは送れない
+  assert.equal((await call("POST", "/api/sign", { t, name: "佐藤 花子", png: PNG })).status, 400);
+  assert.equal((await call("POST", "/api/sign", { t, name: "佐藤 花子", address: "東京都港区1-1", phone: "080", png: PNG })).status, 200);
+  const people = (await call("GET", "/api/people")).json.people;
+  assert.equal(people.length, 1);
+  assert.equal(people[0].name, "佐藤 花子");
+  assert.equal(people[0].address, "東京都港区1-1");
+  const r = await store.getJSON(`receipts/${c.json.receipt.id}.json`);
+  assert.equal(r.personId, people[0].id);
+  // 再サインは名簿の人として動く
+  assert.equal((await call("POST", "/api/receipts/reissue", { id: r.id, changes: { amount: 9000 } })).json.receipt.name, "佐藤 花子");
 });

@@ -68,13 +68,15 @@ function validate({ amount, date, kind }) {
   if (!KINDS[kind]) throw new Error("但し書きの種類が正しくありません");
 }
 
-export function createReceipt({ person, amount, date, event, kind }, now = new Date()) {
+// person が null = 名簿にない人。名前・住所は相手がサイン画面で書く。nameHint は一覧で見分ける目印だけ(相手には出さない)。
+export function createReceipt({ person, nameHint, amount, date, event, kind }, now = new Date()) {
   validate({ amount, date, kind });
   const at = now.toISOString();
   return {
     id: newId("R", now),
-    personId: person.id,
-    name: person.name, address: person.address || "", phone: person.phone || "",
+    personId: person ? person.id : null,
+    label: person ? "" : (nameHint || "").trim(),
+    name: person ? person.name : "", address: person?.address || "", phone: person?.phone || "",
     amount, date, event: (event || "").trim(), kind,
     proviso: proviso(kind, date, event),
     status: "pending",
@@ -117,6 +119,7 @@ export function tokenUsable(r, now = new Date()) {
 export function applySignature(r, { name, address, phone, sha256, ip, ua }, now = new Date()) {
   if (!tokenUsable(r, now)) throw new Error("この URL は使えません");
   if (!String(name || "").trim()) throw new Error("お名前を入れてください");
+  if (!String(address || "").trim()) throw new Error("ご住所を入れてください");
   const at = now.toISOString();
   return {
     ...r, status: "signed",

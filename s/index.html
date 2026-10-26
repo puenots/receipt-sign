@@ -47,8 +47,8 @@ a.btn{display:block;text-align:center;text-decoration:none;font-weight:700;borde
     <div class="amount"><span>金額</span><b id="amount"></b></div>
     <p class="prov">但し、<span id="prov"></span><br>上記、正に領収いたしました。</p>
 
-    <div class="lbl">ご住所</div><input id="address" name="address" autocomplete="street-address">
-    <div class="lbl">お名前</div><input id="name" name="name" autocomplete="name" required>
+    <div class="lbl">ご住所(必須)</div><input id="address" name="address" autocomplete="street-address" required>
+    <div class="lbl">お名前(必須)</div><input id="name" name="name" autocomplete="name" required>
     <div class="lbl">お電話番号</div><input id="phone" name="phone" type="tel" autocomplete="tel">
 
     <div class="lbl">サイン(指で書いてください)</div>
@@ -57,7 +57,7 @@ a.btn{display:block;text-align:center;text-decoration:none;font-weight:700;borde
 
     <button class="main" id="send" type="submit">この内容で送信する</button>
     <div class="err" id="err"></div>
-    <p class="note">住所・お名前・電話が違っていたら直してから送信してください。送信すると金額・内容は変えられません。</p>
+    <p class="note">空いているところは書いて、違っていたら直してから送信してください。送信すると金額・内容は変えられません。</p>
   </form>
 
   <div id="done" class="paper done hide">
@@ -111,6 +111,7 @@ $("form").addEventListener("submit", async (e) => {
   $("err").textContent = "";
   const name = $("name").value.trim();
   if (!name) return ($("err").textContent = "お名前を入れてください");
+  if (!$("address").value.trim()) return ($("err").textContent = "ご住所を入れてください");
   if (!strokes) return ($("err").textContent = "サインを書いてください");
   $("send").disabled = true; $("send").textContent = "送信中…";
   try {

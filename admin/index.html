@@ -66,7 +66,8 @@ button.sm{padding:6px 10px;font-size:13px}
   <section id="tNew" class="card">
     <h2>新しい領収書(URL を作って LINE で送る)</h2>
     <form id="newForm">
-      <label>相手(名簿から)</label><select id="nPerson" required></select>
+      <label>相手(名簿から)</label><select id="nPerson"></select>
+      <div id="nHintBox" class="hide"><label>一覧で見分ける呼び名(自分用・相手には出ません)</label><input id="nHint" placeholder="例: BLOCK6 照明の人"></div>
       <div class="grid">
         <div><label>金額(円)</label><input id="nAmount" type="number" inputmode="numeric" min="1" step="1" required></div>
         <div><label>日付(イベントの日)</label><input id="nDate" type="date" required></div>
@@ -166,15 +167,16 @@ function eventOptions(sel) { return [...new Set([...EVENTS, sel].filter(Boolean)
 function kindOptions(sel) { return Object.entries(KINDS).map(([k, v]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${v}</option>`).join(""); }
 
 // --- 新しく作る ---
+$("nPerson").addEventListener("change", () => $("nHintBox").classList.toggle("hide", $("nPerson").value !== ""));
 function updPrev() { $("nPrev").textContent = "但し、" + proviso($("nKind").value, $("nDate").value, $("nEvent").value); }
 ["nKind", "nDate", "nEvent"].forEach((id) => { $(id).addEventListener("input", updPrev); $(id).addEventListener("change", updPrev); });
 $("newForm").onsubmit = async (e) => {
   e.preventDefault(); $("nMsg").textContent = ""; $("nOut").innerHTML = "";
   try {
-    const res = await api("POST", "/api/receipts", { personId: $("nPerson").value, amount: $("nAmount").value, date: $("nDate").value, event: $("nEvent").value, kind: $("nKind").value });
-    const p = document.createElement("p"); p.className = "msg o"; p.textContent = `${res.receipt.name} さん ${yen(res.receipt.amount)} の URL を作りました。LINE に貼って送ってください。`;
+    const res = await api("POST", "/api/receipts", { personId: $("nPerson").value || undefined, nameHint: $("nHint").value, amount: $("nAmount").value, date: $("nDate").value, event: $("nEvent").value, kind: $("nKind").value });
+    const p = document.createElement("p"); p.className = "msg o"; p.textContent = `${res.receipt.name ? res.receipt.name + " さん" : `名簿にない人${res.receipt.label ? `(${res.receipt.label})` : ""}`} ${yen(res.receipt.amount)} の URL を作りました。LINE に貼って送ってください。${res.receipt.personId ? "" : "(相手が名前・住所を書いて送ると、名簿にも入ります)"}`;
     $("nOut").append(p, urlBox(res.url));
-    $("nAmount").value = "";
+    $("nAmount").value = ""; $("nHint").value = "";
     await loadReceipts();
   } catch (err) { $("nMsg").textContent = err.message; }
 };
@@ -208,7 +210,7 @@ function renderList() {
   $("list").innerHTML = rows.length ? "" : '<p class="meta">ありません</p>';
   for (const r of rows) {
     const d = document.createElement("div"); d.className = `r ${r.status}`; d.dataset.id = r.id;
-    d.innerHTML = `<div class="top"><span class="who">${esc(r.name)}</span><span><span class="amt">${yen(r.amount)}</span> <span class="badge b-${r.status}">${STATUS[r.status]}</span></span></div>
+    d.innerHTML = `<div class="top"><span class="who">${r.name ? esc(r.name) : `(相手が記入)${r.label ? " " + esc(r.label) : ""}`}${r.status === "pending" && !r.personId ? ' <span class="badge" style="background:#2f6fb5">名簿外</span>' : ""}</span><span><span class="amt">${yen(r.amount)}</span> <span class="badge b-${r.status}">${STATUS[r.status]}</span></span></div>
       <div class="meta">${esc(r.proviso)}</div>
       <div class="meta">${esc(r.id)}${r.signedAt ? ` / 送信 ${new Date(r.signedAt).toLocaleString("ja-JP")}` : ""}${r.replacedBy ? ` / 再発行 → ${esc(r.replacedBy)}` : ""}${r.replaces ? ` / ${esc(r.replaces)} の作り直し` : ""}</div>
       <div class="acts"></div>
@@ -243,7 +245,8 @@ $("pForm").onsubmit = async (e) => {
 };
 async function loadPeople() {
   people = (await api("GET", "/api/people")).people;
-  $("nPerson").innerHTML = people.length ? people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("") : '<option value="">(先に「名簿」で人を追加)</option>';
+  $("nPerson").innerHTML = people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("") + '<option value="">＋ 名簿にない人(名前・住所は相手が書く)</option>';
+  $("nPerson").dispatchEvent(new Event("change"));
   $("people").innerHTML = "";
   for (const p of people) {
     const d = document.createElement("div"); d.className = "r";

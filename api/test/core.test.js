@@ -66,6 +66,7 @@ test("期限切れトークンは使えない・名前は必須", () => {
   assert.ok(c.tokenUsable(r, now));
   assert.ok(!c.tokenUsable(r, new Date("2026-12-01T00:00:00Z")));
   assert.throws(() => c.applySignature(r, { name: " " }, now), /お名前/);
+  assert.throws(() => c.applySignature(r, { name: "A", address: " " }, now), /ご住所/);
 });
 
 test("ファイル名と公開ビュー", () => {
