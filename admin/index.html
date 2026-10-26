@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>領収書 管理</title>
+<style>
+:root{--bg:#f2f0ec;--card:#fff;--ink:#1a1a1a;--sub:#666;--line:#ccc;--accent:#1a1a1a;--warn:#c77700;--ok:#1a7f37;--void:#999;--err:#c62828}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Hiragino Sans",sans-serif;line-height:1.6;-webkit-text-size-adjust:100%}
+main{max-width:860px;margin:0 auto;padding:16px 16px 60px}
+h1{font-size:20px;margin:4px 0 12px}
+h2{font-size:17px;margin:0 0 10px}
+.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:14px}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tabs button{flex:1;min-width:90px}
+.tabs button.on{background:var(--accent);color:#fff}
+label{display:block;font-size:12px;color:var(--sub);margin:10px 0 2px}
+input,select{width:100%;font-size:16px;padding:9px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-family:inherit}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+button{font:inherit;font-weight:700;border-radius:9px;padding:10px 14px;border:2px solid var(--accent);background:#fff;color:var(--accent);cursor:pointer}
+button.main{background:var(--accent);color:#fff}
+button.sm{padding:6px 10px;font-size:13px}
+.prev{margin-top:10px;font-size:14px;background:#faf8f4;border-radius:8px;padding:8px 10px}
+.url{display:flex;gap:8px;align-items:center;margin-top:10px;background:#eef6ee;border-radius:8px;padding:10px;flex-wrap:wrap}
+.url code{flex:1;min-width:200px;word-break:break-all;font-size:13px}
+.r{border-top:1px solid #eee;padding:12px 0}
+.r:first-child{border-top:0}
+.r .top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.r .who{font-weight:700}
+.r .amt{font-weight:700}
+.r .meta{font-size:13px;color:var(--sub)}
+.r .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.badge{font-size:12px;font-weight:700;padding:1px 8px;border-radius:99px;color:#fff;white-space:nowrap}
+.b-pending{background:var(--warn)}.b-signed{background:var(--ok)}.b-void{background:var(--void)}
+.r.void .who,.r.void .amt{text-decoration:line-through;color:var(--void)}
+.edit{background:#faf8f4;border-radius:8px;padding:10px;margin-top:8px}
+.hist{font-size:12px;color:var(--sub);margin-top:6px}
+.msg{font-weight:700;margin-top:8px}
+.msg.e{color:var(--err)}.msg.o{color:var(--ok)}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.hide{display:none}
+@media (max-width:560px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<h1>領収書 管理(株式会社ストーンアップ)</h1>
+
+<div id="login" class="card hide">
+  <h2>ログイン</h2>
+  <form id="loginForm"><label>パスワード</label><input id="pw" type="password" autocomplete="current-password">
+  <button class="main" style="margin-top:12px;width:100%">入る</button></form>
+  <div class="msg e" id="loginMsg"></div>
+</div>
+
+<div id="app" class="hide">
+  <div class="tabs">
+    <button data-tab="tNew" class="on">新しく作る</button>
+    <button data-tab="tList">一覧</button>
+    <button data-tab="tPeople">名簿</button>
+    <button data-tab="tKeiri">経理用</button>
+  </div>
+
+  <section id="tNew" class="card">
+    <h2>新しい領収書(URL を作って LINE で送る)</h2>
+    <form id="newForm">
+      <label>相手(名簿から)</label><select id="nPerson" required></select>
+      <div class="grid">
+        <div><label>金額(円)</label><input id="nAmount" type="number" inputmode="numeric" min="1" step="1" required></div>
+        <div><label>日付(イベントの日)</label><input id="nDate" type="date" required></div>
+        <div><label>イベント名</label><input id="nEvent" list="events" placeholder="例: STILL045"></div>
+        <div><label>但し書き</label><select id="nKind"></select></div>
+      </div>
+      <div class="prev" id="nPrev"></div>
+      <button class="main" style="margin-top:12px;width:100%">URL を作る</button>
+    </form>
+    <div class="msg e" id="nMsg"></div>
+    <div id="nOut"></div>
+  </section>
+
+  <section id="tList" class="card hide">
+    <h2>一覧</h2>
+    <div class="filters">
+      <button class="sm on" data-f="all">全部</button><button class="sm" data-f="pending">未サイン</button><button class="sm" data-f="signed">サイン済</button><button class="sm" data-f="void">取消</button>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <section id="tPeople" class="card hide">
+    <h2>名簿</h2>
+    <form id="pForm">
+      <input type="hidden" id="pId">
+      <div class="grid">
+        <div><label>お名前</label><input id="pName" required></div>
+        <div><label>お電話番号</label><input id="pPhone" type="tel"></div>
+      </div>
+      <label>ご住所</label><input id="pAddress">
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="main" id="pSave" style="flex:1">追加する</button><button type="button" id="pCancel" class="hide">やめる</button></div>
+    </form>
+    <div class="msg" id="pMsg"></div>
+    <div id="people" style="margin-top:12px"></div>
+  </section>
+
+  <section id="tKeiri" class="card hide">
+    <h2>経理用にまとめる</h2>
+    <p class="meta" style="font-size:14px;color:var(--sub);margin:0">ZIP に「領収書一覧.csv(Excel で開ける)」「合計.html(但し書き別・イベント別の合計、印刷用)」「PDF 全部(取消は 取消/ フォルダ)」が入ります。そのまま経理に送れます。</p>
+    <div class="grid">
+      <div><label>月で選ぶ</label><input id="kMonth" type="month"></div>
+      <div><label>イベントで選ぶ(どちらか・両方でも可)</label><select id="kEvent"></select></div>
+    </div>
+    <button class="main" id="kGo" style="margin-top:12px;width:100%">まとめて ZIP を作る</button>
+    <div class="msg" id="kMsg"></div>
+  </section>
+</div>
+<datalist id="events"></datalist>
+</main>
+<script src="../config.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const KINDS = { shukyaku: "イベント協力費（集客）", setsuei: "会場設営・撤収作業代", dj: "DJ出演料", kyoryoku: "イベント協力費" };
+const STATUS = { pending: "未サイン", signed: "サイン済", void: "取消" };
+let people = [], receipts = [], filter = "all";
+const store = { get(k) { try { return sessionStorage.getItem(k); } catch { return null; } }, set(k, v) { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch {} } };
+let session = store.get("rs-session");
+
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const yen = (n) => "¥" + Number(n).toLocaleString("ja-JP");
+const jpDate = (d) => { const [y, m, dd] = d.split("-").map(Number); return `${y}年${m}月${dd}日`; };
+const proviso = (kind, date, event) => kind === "kyoryoku" ? "イベント協力費として" : `${[date ? jpDate(date) : "", (event || "").trim()].filter(Boolean).join(" ")} ${KINDS[kind]}として`;
+const lineText = (url) => `領収書へのサインをお願いします。\n開いて内容を確認し、指でサインして送信してください。\n${url}`;
+
+async function api(method, path, body) {
+  const res = await fetch(window.RECEIPT_API + path, { method, headers: { "content-type": "application/json", authorization: `Bearer ${session}` }, body: body ? JSON.stringify(body) : undefined });
+  const json = await res.json().catch(() => ({}));
+  if (res.status === 401 && path !== "/api/login") { logout(); throw new Error("ログインし直してください"); }
+  if (!res.ok) throw new Error(json.error || `エラー(${res.status})`);
+  return json;
+}
+function logout() { session = null; store.set("rs-session", null); $("app").classList.add("hide"); $("login").classList.remove("hide"); }
+
+$("loginForm").onsubmit = async (e) => {
+  e.preventDefault(); $("loginMsg").textContent = "";
+  try { session = (await api("POST", "/api/login", { password: $("pw").value })).session; store.set("rs-session", session); start(); }
+  catch (err) { $("loginMsg").textContent = err.message; }
+};
+
+document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
+  for (const id of ["tNew", "tList", "tPeople", "tKeiri"]) $(id).classList.toggle("hide", id !== b.dataset.tab);
+});
+
+async function copy(text, btn) {
+  try { await navigator.clipboard.writeText(text); const t = btn.textContent; btn.textContent = "コピーしました"; setTimeout(() => btn.textContent = t, 1500); }
+  catch { window.getSelection().selectAllChildren(btn.parentElement.querySelector("code")); }
+}
+function urlBox(url) {
+  const d = document.createElement("div"); d.className = "url";
+  d.innerHTML = `<code>${esc(url)}</code><button type="button" class="sm">URL をコピー</button><button type="button" class="sm">案内文つきでコピー</button>`;
+  const [b1, b2] = d.querySelectorAll("button");
+  b1.onclick = () => copy(url, b1); b2.onclick = () => copy(lineText(url), b2);
+  return d;
+}
+function kindOptions(sel) { return Object.entries(KINDS).map(([k, v]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${v}</option>`).join(""); }
+
+// --- 新しく作る ---
+function updPrev() { $("nPrev").textContent = "但し、" + proviso($("nKind").value, $("nDate").value, $("nEvent").value); }
+["nKind", "nDate", "nEvent"].forEach((id) => $(id).addEventListener("input", updPrev));
+$("newForm").onsubmit = async (e) => {
+  e.preventDefault(); $("nMsg").textContent = ""; $("nOut").innerHTML = "";
+  try {
+    const res = await api("POST", "/api/receipts", { personId: $("nPerson").value, amount: $("nAmount").value, date: $("nDate").value, event: $("nEvent").value, kind: $("nKind").value });
+    const p = document.createElement("p"); p.className = "msg o"; p.textContent = `${res.receipt.name} さん ${yen(res.receipt.amount)} の URL を作りました。LINE に貼って送ってください。`;
+    $("nOut").append(p, urlBox(res.url));
+    $("nAmount").value = "";
+    await loadReceipts();
+  } catch (err) { $("nMsg").textContent = err.message; }
+};
+
+// --- 一覧 ---
+document.querySelectorAll(".filters button").forEach((b) => b.onclick = () => {
+  filter = b.dataset.f; document.querySelectorAll(".filters button").forEach((x) => x.classList.toggle("on", x === b)); renderList();
+});
+function editForm(r, mode) {
+  const d = document.createElement("form"); d.className = "edit";
+  d.innerHTML = `<div style="font-weight:700;font-size:14px">${mode === "update" ? "内容を直す(URL はそのまま)" : "金額などを直して再サイン(この領収書は「取消」で残り、新しい URL ができます)"}</div>
+  <div class="grid"><div><label>金額(円)</label><input name="amount" type="number" inputmode="numeric" min="1" value="${r.amount}"></div>
+  <div><label>日付</label><input name="date" type="date" value="${r.date}"></div>
+  <div><label>イベント名</label><input name="event" list="events" value="${esc(r.event)}"></div>
+  <div><label>但し書き</label><select name="kind">${kindOptions(r.kind)}</select></div></div>
+  <div style="display:flex;gap:8px;margin-top:10px"><button class="main sm">${mode === "update" ? "保存" : "取消して新しい URL を作る"}</button><button type="button" class="sm" data-x>やめる</button></div><div class="msg e"></div>`;
+  d.querySelector("[data-x]").onclick = () => d.remove();
+  d.onsubmit = async (e) => {
+    e.preventDefault();
+    const f = new FormData(d), changes = Object.fromEntries(f.entries());
+    try {
+      const res = await api("POST", `/api/receipts/${mode}`, { id: r.id, changes });
+      await loadReceipts();
+      if (mode === "reissue") { const row = document.querySelector(`[data-id="${res.receipt.id}"]`); if (row) { row.append(urlBox(res.url)); row.scrollIntoView({ block: "center" }); } }
+    } catch (err) { d.querySelector(".msg").textContent = err.message; }
+  };
+  return d;
+}
+function renderList() {
+  const rows = receipts.filter((r) => filter === "all" || r.status === filter);
+  $("list").innerHTML = rows.length ? "" : '<p class="meta">ありません</p>';
+  for (const r of rows) {
+    const d = document.createElement("div"); d.className = `r ${r.status}`; d.dataset.id = r.id;
+    d.innerHTML = `<div class="top"><span class="who">${esc(r.name)}</span><span><span class="amt">${yen(r.amount)}</span> <span class="badge b-${r.status}">${STATUS[r.status]}</span></span></div>
+      <div class="meta">${esc(r.proviso)}</div>
+      <div class="meta">${esc(r.id)}${r.signedAt ? ` / 送信 ${new Date(r.signedAt).toLocaleString("ja-JP")}` : ""}${r.replacedBy ? ` / 再発行 → ${esc(r.replacedBy)}` : ""}${r.replaces ? ` / ${esc(r.replaces)} の作り直し` : ""}</div>
+      <div class="acts"></div>
+      <details class="hist"><summary>履歴</summary>${r.history.map((h) => `<div>${new Date(h.at).toLocaleString("ja-JP")} ${esc(h.action)} ${h.diff ? esc(Object.entries(h.diff).map(([k, v]) => `${k}: ${v.from} → ${v.to}`).join(" / ")) : ""}${h.amount && typeof h.amount === "object" ? esc(` 金額 ${h.amount.from} → ${h.amount.to}`) : ""}</div>`).join("")}</details>`;
+    const acts = d.querySelector(".acts");
+    const btn = (label, fn) => { const b = document.createElement("button"); b.type = "button"; b.className = "sm"; b.textContent = label; b.onclick = () => fn(b); acts.append(b); };
+    if (r.status === "pending") {
+      btn("URL を表示", () => { if (!d.querySelector(".url")) d.insertBefore(urlBox(r.url), d.querySelector(".hist")); });
+      btn("内容を直す", () => { if (!d.querySelector(".edit")) d.insertBefore(editForm(r, "update"), d.querySelector(".hist")); });
+    }
+    if (r.status !== "pending") btn("PDF", async (b) => { try { location.href = (await api("GET", `/api/receipts/pdf?id=${encodeURIComponent(r.id)}`)).url; } catch (err) { b.textContent = err.message; } });
+    if (r.status === "signed") btn("金額を直して再サイン", () => { if (!d.querySelector(".edit")) d.insertBefore(editForm(r, "reissue"), d.querySelector(".hist")); });
+    $("list").append(d);
+  }
+}
+async function loadReceipts() {
+  receipts = (await api("GET", "/api/receipts")).receipts;
+  const events = [...new Set(receipts.map((r) => r.event).filter(Boolean))];
+  $("events").innerHTML = events.map((e) => `<option value="${esc(e)}">`).join("");
+  $("kEvent").innerHTML = '<option value="">(イベントで絞らない)</option>' + events.map((e) => `<option>${esc(e)}</option>`).join("");
+  renderList();
+}
+
+// --- 名簿 ---
+function resetPerson() { $("pId").value = ""; $("pName").value = $("pPhone").value = $("pAddress").value = ""; $("pSave").textContent = "追加する"; $("pCancel").classList.add("hide"); }
+$("pCancel").onclick = resetPerson;
+$("pForm").onsubmit = async (e) => {
+  e.preventDefault(); $("pMsg").textContent = "";
+  try {
+    await api("POST", "/api/people", { id: $("pId").value || undefined, name: $("pName").value, phone: $("pPhone").value, address: $("pAddress").value });
+    $("pMsg").className = "msg o"; $("pMsg").textContent = "保存しました"; resetPerson(); await loadPeople();
+  } catch (err) { $("pMsg").className = "msg e"; $("pMsg").textContent = err.message; }
+};
+async function loadPeople() {
+  people = (await api("GET", "/api/people")).people;
+  $("nPerson").innerHTML = people.length ? people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("") : '<option value="">(先に「名簿」で人を追加)</option>';
+  $("people").innerHTML = "";
+  for (const p of people) {
+    const d = document.createElement("div"); d.className = "r";
+    d.innerHTML = `<div class="top"><span class="who">${esc(p.name)}</span><button type="button" class="sm">直す</button></div><div class="meta">${esc(p.address)} / ${esc(p.phone)}</div>`;
+    d.querySelector("button").onclick = () => { $("pId").value = p.id; $("pName").value = p.name; $("pPhone").value = p.phone; $("pAddress").value = p.address; $("pSave").textContent = "直して保存"; $("pCancel").classList.remove("hide"); $("pForm").scrollIntoView({ block: "start" }); };
+    $("people").append(d);
+  }
+}
+
+// --- 経理用 ---
+$("kGo").onclick = async () => {
+  $("kMsg").className = "msg"; $("kMsg").textContent = "作っています…";
+  try {
+    const res = await api("POST", "/api/export", { month: $("kMonth").value || undefined, event: $("kEvent").value || undefined });
+    $("kMsg").className = "msg o"; $("kMsg").innerHTML = `${res.count} 件をまとめました。 <a href="${esc(res.url)}">ZIP をダウンロード</a>(リンクは 1 時間有効)`;
+  } catch (err) { $("kMsg").className = "msg e"; $("kMsg").textContent = err.message; }
+};
+
+async function start() {
+  $("login").classList.add("hide"); $("app").classList.remove("hide");
+  $("nKind").innerHTML = kindOptions("shukyaku");
+  $("nDate").value = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+  $("kMonth").value = $("nDate").value.slice(0, 7);
+  updPrev();
+  try { await Promise.all([loadPeople(), loadReceipts()]); } catch (err) { $("nMsg").textContent = err.message; }
+}
+session ? start() : logout();
+</script>
+</body>
+</html>
