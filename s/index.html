@@ -25,6 +25,8 @@ input{width:100%;font-size:16px;padding:10px;border:1px solid var(--line);border
 #sigbox img{max-width:100%;max-height:100%}
 #pad{position:fixed;inset:0;z-index:10;background:#fff;display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 #pad.hide{display:none}
+#pad,#pad *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+body.signing{-webkit-user-select:none;user-select:none}
 /* 縦持ちのときは書く画面ごと 90 度回して横向きで出す(iPhone は向きの固定ができないため) */
 #pad.rot{inset:auto;top:0;left:0;transform-origin:top left;padding:env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) env(safe-area-inset-top)}
 #pad .bar{padding:10px 14px;font-size:14px;color:#444;text-align:center}
@@ -139,6 +141,9 @@ function pos(e) {
   // 90 度回しているときは画面の座標を枠の中の座標に戻す
   return $("pad").classList.contains("rot") ? [e.clientY - r.top, r.right - e.clientX] : [e.clientX - r.left, e.clientY - r.top];
 }
+// iPhone の長押しで文字選択・メニュー・拡大が始まらないようにする
+for (const ev of ["touchstart", "touchmove"]) big.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+for (const ev of ["selectstart", "contextmenu", "dblclick"]) $("pad").addEventListener(ev, (e) => e.preventDefault());
 big.addEventListener("pointerdown", (e) => { e.preventDefault(); big.setPointerCapture(e.pointerId); cur = { w: padW, h: padH, pts: [pos(e)] }; strokes.push(cur); redraw(); });
 big.addEventListener("pointermove", (e) => { if (!cur) return; e.preventDefault(); cur.pts.push(pos(e)); redraw(); });
 for (const ev of ["pointerup", "pointercancel"]) big.addEventListener(ev, () => { cur = null; });
@@ -147,11 +152,12 @@ let saved = [];
 function openPad() {
   saved = strokes.slice();
   if (document.activeElement) document.activeElement.blur(); // キーボードを閉じる
-  $("pad").classList.remove("hide"); document.body.style.overflow = "hidden";
+  $("pad").classList.remove("hide"); document.body.style.overflow = "hidden"; document.body.classList.add("signing");
+  window.getSelection()?.removeAllRanges();
   padW = padH = 0; sizePad();
   setTimeout(sizePad, 400); // キーボードが閉じきってから測り直す
 }
-function closePad() { $("pad").classList.add("hide"); document.body.style.overflow = ""; }
+function closePad() { $("pad").classList.add("hide"); document.body.style.overflow = ""; document.body.classList.remove("signing"); }
 // 書いた部分だけを切り出す(領収書に大きく載せるため)
 function trimmed() {
   const dpr = window.devicePixelRatio || 1, pad = 12;
