@@ -10,7 +10,7 @@ export const KINDS = {
   setsuei: "会場設営・撤収作業代",
   dj: "DJ出演料",
   kyoryoku: "イベント協力費",
-  henshu: "音源編集作業代（尺調整）",
+  henshu: "音源データ加工作業費",
 };
 // 日付・イベント名を入れず単独で書く但し書き
 export const PLAIN_KINDS = ["kyoryoku", "henshu"];

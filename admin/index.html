@@ -119,7 +119,7 @@ button.sm{padding:6px 10px;font-size:13px}
 <script src="../config.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
-const KINDS = { shukyaku: "イベント協力費（集客）", setsuei: "会場設営・撤収作業代", dj: "DJ出演料", kyoryoku: "イベント協力費", henshu: "音源編集作業代（尺調整）" };
+const KINDS = { shukyaku: "イベント協力費（集客）", setsuei: "会場設営・撤収作業代", dj: "DJ出演料", kyoryoku: "イベント協力費", henshu: "音源データ加工作業費" };
 const STATUS = { pending: "未サイン", signed: "サイン済", void: "取消" };
 let people = [], receipts = [], filter = "all";
 const store = { get(k) { try { return sessionStorage.getItem(k); } catch { return null; } }, set(k, v) { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch {} } };
