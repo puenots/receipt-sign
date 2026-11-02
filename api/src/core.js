@@ -23,8 +23,8 @@ export function jpDate(ymd) {
 export function proviso(kind, date, event) {
   if (!KINDS[kind]) throw new Error(`unknown kind: ${kind}`);
   if (PLAIN_KINDS.includes(kind)) return `${KINDS[kind]}として`;
-  const head = [jpDate(date), (event || "").trim()].filter(Boolean).join(" ");
-  return `${head} ${KINDS[kind]}として`;
+  // イベント名は但し書きに入れない(2026-11-02 keiju 決定)。引数は互換のため残す
+  return `${jpDate(date)} ${KINDS[kind]}として`;
 }
 
 export function randomToken() {

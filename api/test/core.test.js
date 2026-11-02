@@ -5,10 +5,10 @@ import * as c from "../src/core.js";
 const person = { id: "P-1", name: "山田 太郎", address: "横浜市中区1-1", phone: "090-0000-0000" };
 const now = new Date("2026-10-26T00:00:00Z");
 
-test("但し書き: 日付とイベント名が入る / 協力費は単独", () => {
-  assert.equal(c.proviso("shukyaku", "2026-10-24", "STILL045"), "2026年10月24日 STILL045 イベント協力費（集客）として");
+test("但し書き: 日付が入る(イベント名は入れない) / 協力費は単独", () => {
+  assert.equal(c.proviso("shukyaku", "2026-10-24", "STILL045"), "2026年10月24日 イベント協力費（集客）として");
   assert.equal(c.proviso("setsuei", "2026-10-24", ""), "2026年10月24日 会場設営・撤収作業代として");
-  assert.equal(c.proviso("dj", "2026-07-25", "BLOCK6"), "2026年7月25日 BLOCK6 DJ出演料として");
+  assert.equal(c.proviso("dj", "2026-07-25", "BLOCK6"), "2026年7月25日 DJ出演料として");
   assert.equal(c.proviso("kyoryoku", "2026-10-24", "STILL045"), "イベント協力費として");
   assert.equal(c.proviso("henshu", "2026-11-02", "STILL045"), "音源編集作業代（尺調整）として");
   assert.throws(() => c.proviso("x", "2026-10-24", ""));
@@ -42,7 +42,7 @@ test("サイン前は金額を直せて履歴が残る・トークンは同じ",
   const u = c.updatePending(r, { amount: 12000, kind: "setsuei" }, now);
   assert.equal(u.amount, 12000);
   assert.equal(u.token, r.token);
-  assert.equal(u.proviso, "2026年10月24日 STILL045 会場設営・撤収作業代として");
+  assert.equal(u.proviso, "2026年10月24日 会場設営・撤収作業代として");
   assert.deepEqual(u.history.at(-1).diff.amount, { from: 15000, to: 12000 });
 });
 

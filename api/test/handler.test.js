@@ -61,7 +61,7 @@ test("作成→サイン→PDF→再サイン→経理 ZIP まで一周", async 
   assert.equal(v.json.receipt.amount, 12000);
   assert.equal(v.json.receipt.address, "横浜市中区1-1");
   assert.equal(v.json.receipt.history, undefined);
-  assert.equal(v.json.receipt.proviso, "2026年10月24日 STILL045 イベント協力費（集客）として");
+  assert.equal(v.json.receipt.proviso, "2026年10月24日 イベント協力費（集客）として");
 
   // 送信: 壊れた画像は 400
   assert.equal((await call("POST", "/api/sign", { t: token, name: "山田 太郎", png: "AAAA" })).status, 400);
