@@ -10,6 +10,7 @@ test("但し書き: 日付とイベント名が入る / 協力費は単独", () 
   assert.equal(c.proviso("setsuei", "2026-10-24", ""), "2026年10月24日 会場設営・撤収作業代として");
   assert.equal(c.proviso("dj", "2026-07-25", "BLOCK6"), "2026年7月25日 BLOCK6 DJ出演料として");
   assert.equal(c.proviso("kyoryoku", "2026-10-24", "STILL045"), "イベント協力費として");
+  assert.equal(c.proviso("henshu", "2026-11-02", "STILL045"), "2026年11月2日 音源編集作業代（尺調整・イントロ／アウトロ追加）として");
   assert.throws(() => c.proviso("x", "2026-10-24", ""));
 });
 

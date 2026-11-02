@@ -10,7 +10,10 @@ export const KINDS = {
   setsuei: "会場設営・撤収作業代",
   dj: "DJ出演料",
   kyoryoku: "イベント協力費",
+  henshu: "音源編集作業代（尺調整・イントロ／アウトロ追加）",
 };
+// イベントに紐づかない但し書き(イベント名を入れない)
+export const NO_EVENT_KINDS = ["henshu"];
 
 export function jpDate(ymd) {
   const [y, m, d] = ymd.split("-").map(Number);
@@ -20,7 +23,8 @@ export function jpDate(ymd) {
 export function proviso(kind, date, event) {
   if (!KINDS[kind]) throw new Error(`unknown kind: ${kind}`);
   if (kind === "kyoryoku") return "イベント協力費として";
-  const head = [jpDate(date), (event || "").trim()].filter(Boolean).join(" ");
+  const ev = NO_EVENT_KINDS.includes(kind) ? "" : (event || "").trim();
+  const head = [jpDate(date), ev].filter(Boolean).join(" ");
   return `${head} ${KINDS[kind]}として`;
 }
 

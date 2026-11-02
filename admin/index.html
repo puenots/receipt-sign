@@ -120,7 +120,7 @@ button.sm{padding:6px 10px;font-size:13px}
 <script src="../config.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
-const KINDS = { shukyaku: "イベント協力費（集客）", setsuei: "会場設営・撤収作業代", dj: "DJ出演料", kyoryoku: "イベント協力費" };
+const KINDS = { shukyaku: "イベント協力費（集客）", setsuei: "会場設営・撤収作業代", dj: "DJ出演料", kyoryoku: "イベント協力費", henshu: "音源編集作業代（尺調整・イントロ／アウトロ追加）" };
 const EVENTS = ["STILL045", "BLOCK6"];
 const STATUS = { pending: "未サイン", signed: "サイン済", void: "取消" };
 let people = [], receipts = [], filter = "all";
@@ -130,7 +130,7 @@ let session = store.get("rs-session");
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const yen = (n) => "¥" + Number(n).toLocaleString("ja-JP");
 const jpDate = (d) => { const [y, m, dd] = d.split("-").map(Number); return `${y}年${m}月${dd}日`; };
-const proviso = (kind, date, event) => kind === "kyoryoku" ? "イベント協力費として" : `${[date ? jpDate(date) : "", (event || "").trim()].filter(Boolean).join(" ")} ${KINDS[kind]}として`;
+const proviso = (kind, date, event) => kind === "kyoryoku" ? "イベント協力費として" : `${[date ? jpDate(date) : "", kind === "henshu" ? "" : (event || "").trim()].filter(Boolean).join(" ")} ${KINDS[kind]}として`;
 const lineText = (url) => `領収書へのサインをお願いします。\n開いて内容を確認し、指でサインして送信してください。\n${url}`;
 
 async function api(method, path, body) {
