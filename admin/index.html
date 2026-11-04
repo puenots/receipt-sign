@@ -271,7 +271,7 @@ $("kGo").onclick = async () => {
 
 async function start() {
   $("login").classList.add("hide"); $("app").classList.remove("hide");
-  $("nKind").innerHTML = kindOptions("shukyaku");
+  $("nKind").innerHTML = kindOptions("henshu");
   $("nDate").value = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
   $("kMonth").value = $("nDate").value.slice(0, 7);
   updPrev();
