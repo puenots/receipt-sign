@@ -154,9 +154,24 @@ document.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => {
 $("reload").onclick = () => loadReceipts().catch((err) => ($("loadedAt").textContent = err.message));
 document.addEventListener("visibilitychange", () => { if (!document.hidden && session) loadReceipts().catch(() => {}); });
 
+// コピーを断られたら別のやり方で再挑戦。それもだめなら、前にコピーした URL を貼ってしまわないよう、はっきり知らせる
+function legacyCopy(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+  document.body.append(ta); ta.select(); ta.setSelectionRange(0, text.length);
+  let ok = false; try { ok = document.execCommand("copy"); } catch {}
+  ta.remove(); return ok;
+}
 async function copy(text, btn) {
-  try { await navigator.clipboard.writeText(text); const t = btn.textContent; btn.textContent = "コピーしました"; setTimeout(() => btn.textContent = t, 1500); }
-  catch { window.getSelection().selectAllChildren(btn.parentElement.querySelector("code")); }
+  const box = btn.parentElement;
+  box.querySelector(".copyNg")?.remove();
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch { ok = legacyCopy(text); }
+  if (ok) { const t = btn.dataset.label ||= btn.textContent; btn.textContent = "コピーしました"; setTimeout(() => btn.textContent = t, 1500); return; }
+  window.getSelection().selectAllChildren(box.querySelector("code"));
+  const m = document.createElement("div"); m.className = "copyNg msg e";
+  m.textContent = "コピーできませんでした。前にコピーした URL が残っているので、そのまま貼らないでください。上の URL(選択済み)を ⌘C でコピーしてください。";
+  box.append(m);
 }
 function urlBox(url) {
   const d = document.createElement("div"); d.className = "url";
