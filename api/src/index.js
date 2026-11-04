@@ -4,6 +4,7 @@ import { s3Store } from "./store.js";
 import { buildPdf, isPng, sha256 } from "./pdf.js";
 import { selectReceipts, buildExportFiles } from "./export.js";
 import { makeZip } from "./zip.js";
+import { mailNotifier } from "./notify.js";
 
 const MAX_PNG = 4 * 1024 * 1024;
 
@@ -11,7 +12,7 @@ class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 
-export function makeHandler({ store, env, now = () => new Date(), sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+export function makeHandler({ store, env, now = () => new Date(), sleep = (ms) => new Promise((r) => setTimeout(r, ms)), notify = async () => {} }) {
   const siteUrl = env.SITE_URL || "https://receipt.djue.me";
   // ?r= は領収書ごとに違うので、スマホに古いページが残っていても必ず最新を読む(トークンはサーバーに残らない # の後ろ)
   const signUrl = (r) => `${siteUrl}/s/?r=${r.id}#${r.token}`;
@@ -56,7 +57,7 @@ export function makeHandler({ store, env, now = () => new Date(), sleep = (ms) =
       return { person: p };
     },
 
-    "GET /api/receipts": async () => ({ receipts: (await store.listJSON("receipts/")).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((r) => ({ ...r, url: r.status === "pending" ? signUrl(r) : null })) }),
+    "GET /api/receipts": async () => ({ receipts: (await store.listJSON("receipts/")).filter((r) => r.status !== "deleted").sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((r) => ({ ...r, url: r.status === "pending" ? signUrl(r) : null })) }),
     "POST /api/receipts": async ({ body }) => {
       const person = body.personId ? await getPerson(body.personId) : null;
       const r = core.createReceipt({ person, nameHint: body.nameHint, amount: Number(body.amount), date: body.date, event: body.event, kind: body.kind }, now());
@@ -74,6 +75,11 @@ export function makeHandler({ store, env, now = () => new Date(), sleep = (ms) =
       await saveReceipt(fresh);
       await saveReceipt(old);
       return { old, receipt: fresh, url: signUrl(fresh) };
+    },
+    "POST /api/receipts/delete": async ({ body }) => {
+      const r = core.deletePending(await getReceipt(body.id), now());
+      await saveReceipt(r);
+      return { ok: true };
     },
     "GET /api/receipts/pdf": async ({ query }) => {
       const r = await getReceipt(query.id);
@@ -107,6 +113,8 @@ export function makeHandler({ store, env, now = () => new Date(), sleep = (ms) =
       signed.personId = p.id;
       await saveReceipt(signed);
       await store.putJSON(`log/${r.id}/${signed.signedAt}.json`, { action: "sign", at: signed.signedAt, ip, ua, sha256: hash, pdfSha256: sha256(pdf) });
+      // 通知が失敗してもサインは成立させる
+      try { await notify(signed, pdf); } catch (e) { console.error("notify failed", e); }
       return { ok: true, copyUrl: await store.evidenceUrl(`${r.id}.pdf`, core.pdfFileName(signed), true) };
     },
   };
@@ -135,7 +143,7 @@ export function makeHandler({ store, env, now = () => new Date(), sleep = (ms) =
     } catch (e) {
       if (e instanceof HttpError) return reply(e.status, { error: e.message });
       if (e instanceof SyntaxError) return reply(400, { error: "送信内容が読めません" });
-      if (/が正しくありません|直せません|再サイン|使えません|お名前|ご住所/.test(e.message)) return reply(400, { error: e.message });
+      if (/が正しくありません|直せません|再サイン|使えません|削除できません|お名前|ご住所/.test(e.message)) return reply(400, { error: e.message });
       console.error(e);
       return reply(500, { error: "サーバーでエラーが起きました" });
     }
@@ -151,6 +159,7 @@ export const handler = (event) => {
   cached ||= makeHandler({
     store: s3Store({ dataBucket: process.env.DATA_BUCKET, pdfBucket: process.env.PDF_BUCKET }),
     env: process.env,
+    notify: mailNotifier(process.env),
   });
   return cached(event);
 };

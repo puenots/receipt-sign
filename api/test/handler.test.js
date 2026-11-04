@@ -7,14 +7,15 @@ import path from "node:path";
 import { makeHandler } from "../src/index.js";
 import { memoryStore } from "../src/store.js";
 import { hashPassword } from "../src/core.js";
+import { signedMail, rawMime } from "../src/notify.js";
 
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 const env = { ADMIN_PASS_HASH: hashPassword("secret"), SESSION_KEY: "k", SITE_URL: "https://receipt.djue.me" };
 
-function setup() {
+function setup({ notify } = {}) {
   const store = memoryStore();
   let t = new Date("2026-10-26T00:00:00Z");
-  const h = makeHandler({ store, env, now: () => t, sleep: async () => {} });
+  const h = makeHandler({ store, env, now: () => t, sleep: async () => {}, notify });
   let session = "";
   const call = async (method, p, body, extra = {}) => {
     const [rawPath, qs] = p.split("?");
@@ -148,4 +149,45 @@ test("名簿にない人: 相手が名前・住所を書き、名簿に追加さ
   assert.equal(r.personId, people[0].id);
   // 再サインは名簿の人として動く
   assert.equal((await call("POST", "/api/receipts/reissue", { id: r.id, changes: { amount: 9000 } })).json.receipt.name, "佐藤 花子");
+});
+
+test("間違えて出した未サインは削除できる(一覧・経理から消え、URL も使えない)。サイン済みは削除できない", async () => {
+  const { store, call, login } = setup();
+  await login();
+  const p = (await call("POST", "/api/people", { name: "山田 太郎", address: "横浜市中区1-1" })).json.person;
+  const a = await call("POST", "/api/receipts", { personId: p.id, amount: 1000, date: "2026-10-24", kind: "henshu" });
+  const b = await call("POST", "/api/receipts", { personId: p.id, amount: 2000, date: "2026-10-24", kind: "henshu" });
+  const d = await call("POST", "/api/receipts/delete", { id: a.json.receipt.id });
+  assert.equal(d.status, 200);
+  const list = (await call("GET", "/api/receipts")).json.receipts;
+  assert.deepEqual(list.map((r) => r.id), [b.json.receipt.id]);
+  assert.equal((await call("GET", `/api/sign?t=${a.json.url.split("#")[1]}`)).status, 410);
+  const kept = await store.getJSON(`receipts/${a.json.receipt.id}.json`);
+  assert.equal(kept.status, "deleted"); // 記録は残る
+  assert.equal(kept.history.at(-1).action, "削除");
+  // サイン済みは削除できない
+  await call("POST", "/api/sign", { t: b.json.url.split("#")[1], name: "山田 太郎", address: "横浜市中区1-1", png: PNG });
+  const ng = await call("POST", "/api/receipts/delete", { id: b.json.receipt.id });
+  assert.equal(ng.status, 400);
+  assert.match(ng.json.error, /削除できません/);
+  // 経理 ZIP にも出ない(サイン済み 1 件だけ)
+  assert.equal((await call("POST", "/api/export", { month: "2026-10" })).json.count, 1);
+});
+
+test("サインされたら通知する。通知が失敗してもサインは成立する", async () => {
+  const sent = [];
+  const { call, login } = setup({ notify: async (r, pdf) => { sent.push([r, pdf]); throw new Error("SES down"); } });
+  await login();
+  const c = await call("POST", "/api/receipts", { amount: 15000, date: "2026-11-04", kind: "henshu" });
+  const s = await call("POST", "/api/sign", { t: c.json.url.split("#")[1], name: "伊藤 恵悟", address: "〒231-0865 横浜市中区北方町1-47", png: PNG });
+  assert.equal(s.status, 200);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0][0].name, "伊藤 恵悟");
+  assert.equal(sent[0][1].subarray(0, 5).toString(), "%PDF-");
+  const m = signedMail(sent[0][0], "https://receipt.djue.me");
+  assert.equal(m.subject, "【領収書】伊藤 恵悟 さんがサインしました ¥15,000");
+  assert.match(m.text, /デジタルデータ加工作業費として/);
+  const raw = rawMime({ from: "a@b.c", to: "d@e.f", ...m, pdf: sent[0][1], pdfName: "x.pdf" });
+  assert.match(raw, /Subject: =\?UTF-8\?B\?/);
+  assert.match(raw, /Content-Type: application\/pdf/);
 });

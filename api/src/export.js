@@ -6,6 +6,7 @@ const STATUS = { pending: "未サイン", signed: "サイン済", void: "取消"
 
 export function selectReceipts(receipts, { month, event }) {
   return receipts
+    .filter((r) => r.status !== "deleted")
     .filter((r) => (!month || r.date.startsWith(month)) && (!event || r.event === event))
     .sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name, "ja"));
 }

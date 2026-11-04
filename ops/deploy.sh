@@ -11,6 +11,10 @@ DATA=stoneup-receipt-data
 PDF=stoneup-receipt-pdf
 SITE=https://receipt.djue.me
 SECRETS=${SECRETS:-$HOME/Documents/djue/receipt-sign-20261026/secrets.txt}
+# サインされたら知らせるメール(SES・送信元は SES 検証済みドメイン)
+NOTIFY_TO=puenots@gmail.com
+NOTIFY_DOMAIN=brookstarstitch.com
+NOTIFY_ADDR=receipt-notify@$NOTIFY_DOMAIN
 
 # --- 秘密情報 ---
 if [ ! -f "$SECRETS" ]; then
@@ -50,12 +54,13 @@ if ! aws iam get-role --role-name $ROLE >/dev/null 2>&1; then
 fi
 aws iam put-role-policy --role-name $ROLE --policy-name s3 --policy-document "{\"Version\":\"2012-10-17\",\"Statement\":[
  {\"Effect\":\"Allow\",\"Action\":[\"s3:GetObject\",\"s3:PutObject\"],\"Resource\":[\"arn:aws:s3:::$DATA/*\",\"arn:aws:s3:::$PDF/*\"]},
- {\"Effect\":\"Allow\",\"Action\":\"s3:ListBucket\",\"Resource\":\"arn:aws:s3:::$DATA\"}]}"
+ {\"Effect\":\"Allow\",\"Action\":\"s3:ListBucket\",\"Resource\":\"arn:aws:s3:::$DATA\"},
+ {\"Effect\":\"Allow\",\"Action\":[\"ses:SendEmail\",\"ses:SendRawEmail\"],\"Resource\":\"arn:aws:ses:$R:$ACC:identity/$NOTIFY_DOMAIN\",\"Condition\":{\"StringEquals\":{\"ses:FromAddress\":\"$NOTIFY_ADDR\"}}}]}"
 
 # --- Lambda ---
 rm -rf .build && mkdir .build && cp -R api/src api/package.json api/package-lock.json .build/
 (cd .build && npm ci --omit=dev --silent && zip -qr ../.build.zip .)
-ENVV="Variables={DATA_BUCKET=$DATA,PDF_BUCKET=$PDF,SITE_URL=$SITE,SESSION_KEY=$SESSION_KEY,ADMIN_PASS_HASH=$ADMIN_PASS_HASH}"
+ENVV="Variables={DATA_BUCKET=$DATA,PDF_BUCKET=$PDF,SITE_URL=$SITE,SESSION_KEY=$SESSION_KEY,ADMIN_PASS_HASH=$ADMIN_PASS_HASH,NOTIFY_TO=$NOTIFY_TO,NOTIFY_FROM=\"領収書サイン <$NOTIFY_ADDR>\"}"
 if aws lambda get-function --region $R --function-name $FN >/dev/null 2>&1; then
   aws lambda update-function-code --region $R --function-name $FN --zip-file fileb://.build.zip >/dev/null
   aws lambda wait function-updated --region $R --function-name $FN

@@ -115,6 +115,13 @@ export function voidAndReissue(r, person, changes, now = new Date()) {
   return { old, fresh };
 }
 
+// 間違えて出した未サインを消す。記録は status=deleted で残し、一覧・経理には出さない。URL も使えなくなる。
+export function deletePending(r, now = new Date()) {
+  if (r.status !== "pending") throw new Error("サイン済み・取消済みの領収書は削除できません(サイン済みは「金額を直して再サイン」で取消にします)");
+  const at = now.toISOString();
+  return { ...r, status: "deleted", deletedAt: at, history: [...r.history, { at, action: "削除" }] };
+}
+
 export function tokenUsable(r, now = new Date()) {
   return r && r.status === "pending" && new Date(r.tokenExpiresAt) > now;
 }

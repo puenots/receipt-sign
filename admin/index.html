@@ -223,6 +223,13 @@ function renderList() {
     if (r.status === "pending") {
       btn("URL を表示", () => { if (!d.querySelector(".url")) d.insertBefore(urlBox(r.url), d.querySelector(".hist")); });
       btn("内容を直す", () => { if (!d.querySelector(".edit")) d.insertBefore(editForm(r, "update"), d.querySelector(".hist")); });
+      // 間違えて出したもの用。2 回押して消す(1 回目は確認に変わるだけ)
+      btn("削除", async (b) => {
+        if (!b.dataset.sure) { b.dataset.sure = "1"; b.textContent = "本当に削除する(もう一度押す)"; b.style.color = "var(--err)"; b.style.borderColor = "var(--err)"; return; }
+        b.disabled = true; b.textContent = "削除中…";
+        try { await api("POST", "/api/receipts/delete", { id: r.id }); await loadReceipts(); }
+        catch (err) { b.textContent = err.message; setTimeout(() => loadReceipts().catch(() => {}), 1500); }
+      });
     }
     if (r.status !== "pending") btn("PDF", async (b) => { try { location.href = (await api("GET", `/api/receipts/pdf?id=${encodeURIComponent(r.id)}`)).url; } catch (err) { b.textContent = err.message; } });
     if (r.status === "signed") btn("金額を直して再サイン", () => { if (!d.querySelector(".edit")) d.insertBefore(editForm(r, "reissue"), d.querySelector(".hist")); });

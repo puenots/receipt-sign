@@ -110,8 +110,9 @@ async function api(method, path, body) {
   } catch {
     throw new Error("通信できませんでした。電波のよいところで、もう一度お試しください。");
   }
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error || `エラー(${res.status})`);
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error || `エラー(${res.status})`);
+  if (!json) throw new Error("通信できませんでした。電波のよいところで、もう一度お試しください。"); // 途中で切れた応答
   return json;
 }
 
