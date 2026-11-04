@@ -72,7 +72,7 @@ async function newReceipt(adminPage, opts = {}) {
   await layoutChecks(admin, "管理画面(Pixel 7)");
   // 名簿に 1 人
   await admin.click('[data-tab="tPeople"]');
-  await admin.fill("#pName", "山田 太郎"); await admin.fill("#pAddress", "横浜市中区本牧町1-1"); await admin.fill("#pPhone", "090-0000-0000");
+  await admin.fill("#pName", "山田 太郎"); await admin.fill("#pAddress", "〒231-0806 横浜市中区本牧町1-1"); await admin.fill("#pPhone", "090-0000-0000");
   await admin.click("#pSave"); await admin.waitForFunction(() => document.querySelectorAll("#people .r").length === 1);
   const personId = await admin.$eval("#nPerson", (s) => s.options[0].value);
 
@@ -125,6 +125,8 @@ async function newReceipt(adminPage, opts = {}) {
     const url2 = await newReceipt(admin, { personId });
     await p.goto(url2); await p.reload(); await p.waitForSelector("#form:not(.hide)");
     check((await p.inputValue("#name")) === "山田 太郎" && (await p.inputValue("#address")).startsWith("横浜市"), `${dev}: 名簿の人は名前・住所入り`);
+    check((await p.inputValue("#zip")) === "2310806" && (await p.inputValue("#address")) === "横浜市中区本牧町1-1", `${dev}: 名簿の〒は郵便番号欄に分かれて出る`);
+    check((await p.evaluate(() => fullAddress())) === "〒231-0806 横浜市中区本牧町1-1", `${dev}: 送るときは〒付きの住所に戻る`);
     await p.click("#sigbox"); await p.waitForTimeout(400); await drawWave(p);
     await p.click("#padCancel"); await p.waitForTimeout(100);
     check(!(await p.$("#sigbox img")), `${dev}: やめるとサインは入らない`);

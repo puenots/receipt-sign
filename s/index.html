@@ -245,6 +245,13 @@ $("form").addEventListener("keydown", (e) => {
   next ? next.focus() : e.target.blur();
 });
 
+// 郵便番号(7 桁のときだけ)を住所の頭に付けて 1 つにする
+function fullAddress() {
+  const code = $("zip").value.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/\D/g, "");
+  const a = $("address").value.trim();
+  return code.length === 7 ? `〒${code.slice(0, 3)}-${code.slice(3)} ${a}` : a;
+}
+
 // --- 送信 ---
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -255,9 +262,10 @@ $("form").addEventListener("submit", async (e) => {
   if (!sigImage) return ($("err").textContent = "サインを書いてください(「タップしてサインを書く」を押します)");
   $("send").disabled = true; $("send").textContent = "送信中…";
   try {
-    const img = window.drawReceipt({ ...receipt, name, address: $("address").value.trim(), phone: $("phone").value.trim() }, sigImage);
+    const address = fullAddress();
+    const img = window.drawReceipt({ ...receipt, name, address, phone: $("phone").value.trim() }, sigImage);
     const png = img.toDataURL("image/png").split(",")[1];
-    const res = await api("POST", "/api/sign", { t: token, name, address: $("address").value.trim(), phone: $("phone").value.trim(), png });
+    const res = await api("POST", "/api/sign", { t: token, name, address, phone: $("phone").value.trim(), png });
     $("copy").href = res.copyUrl;
     show("done");
   } catch (err) {
@@ -275,7 +283,10 @@ $("form").addEventListener("submit", async (e) => {
   $("date").textContent = receipt.dateJp;
   $("amount").textContent = `¥ ${receipt.amount.toLocaleString("ja-JP")} −`;
   $("prov").textContent = receipt.proviso;
-  $("address").value = receipt.address; $("name").value = receipt.name; $("phone").value = receipt.phone;
+  // 名簿の住所は「〒231-0865 横浜市…」の形。郵便番号欄と住所欄に分けて見せる
+  const m = (receipt.address || "").match(/^〒?\s*(\d{3})-?(\d{4})\s*(.*)$/);
+  $("zip").value = m ? `${m[1]}${m[2]}` : "";
+  $("address").value = m ? m[3] : receipt.address; $("name").value = receipt.name; $("phone").value = receipt.phone;
   show("form");
 })();
 </script>
