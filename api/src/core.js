@@ -11,9 +11,10 @@ export const KINDS = {
   dj: "DJ出演料",
   kyoryoku: "イベント協力費",
   henshu: "デジタルデータ加工作業費",
+  shokai: "顧客紹介手数料",
 };
 // 日付・イベント名を入れず単独で書く但し書き
-export const PLAIN_KINDS = ["kyoryoku", "henshu"];
+export const PLAIN_KINDS = ["kyoryoku", "henshu", "shokai"];
 
 export function jpDate(ymd) {
   const [y, m, d] = ymd.split("-").map(Number);
